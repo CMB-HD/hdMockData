@@ -40,7 +40,10 @@ noise = hd_data_lib.cmb_noise_spectra()
 
 # Data versions
 
-- `v1.1`: Currently the latest. Contains the data used in MacInnis & Sehgal (2024).
+- `v1.1`: Currently the latest. Contains the data used in MacInnis & Sehgal (2024). The changes relative to the previous version are:
+  - Extended the temperature maximum multipole to 40,000.
+  - Added the late-time kSZ, in addition to the reionization kSZ.
+  - Removed an off-diagonal term in the covariance matrix (see footnote 4 in paper).
 - `v1.0`: Contains the data used in [MacInnis, Sehgal, and Rothermel (2023)](https://arxiv.org/abs/2309.03021). This version should be used only to reproduce the results of that work.
 
 Note that there may not be a new version for each data product, if that data product was not updated. The Python code will automatically find the correct version of each file.
