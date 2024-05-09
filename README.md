@@ -38,6 +38,9 @@ hd_data_lib = hd_data.HDMockData()
 noise = hd_data_lib.cmb_noise_spectra()
 ```
 
+See the `example.ipynb` Jupyter notebook for more detailed examples.
+
+
 # Data versions
 
 - `v1.1`: Currently the latest. Contains the data used in MacInnis & Sehgal (2024). The changes relative to the previous version are:
