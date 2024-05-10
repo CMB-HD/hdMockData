@@ -431,7 +431,7 @@ class HDMockData:
         else:
             output_Lmax = self.Lmax
         L = L[:output_Lmax+1]
-        nkkk = nlkk[:output_Lmax+1]
+        nlkk = nlkk[:output_Lmax+1]
         return L, nlkk
 
 
