@@ -9,7 +9,7 @@ This repository contains the forecasting data for CMB-HD, including:
 It also includes Python functions that can be used to access the data.
 
 If you use any of the data, please cite (see "Data versions" below):
-- MacInnis & Sehgal (2024) for version `v1.1` (this is the default version).
+- [MacInnis & Sehgal (2024)](https://arxiv.org/abs/2405.12220) for version `v1.1` (this is the default version).
 - [MacInnis, Sehgal, and Rothermel (2023)](https://arxiv.org/abs/2309.03021) for version `v1.0`.
 
 # Installation
@@ -43,7 +43,7 @@ See the `example.ipynb` Jupyter notebook for more detailed examples.
 
 # Data versions
 
-- `v1.1`: Currently the latest. Contains the data used in MacInnis & Sehgal (2024). The changes relative to the previous version are:
+- `v1.1`: Currently the latest. Contains the data used in [MacInnis & Sehgal (2024)](https://arxiv.org/abs/2405.12220). The changes relative to the previous version are:
   - Extended the temperature maximum multipole to 40,000.
   - Added the late-time kSZ, in addition to the reionization kSZ.
   - Removed an off-diagonal term in the covariance matrix (see footnote 4 in paper).
