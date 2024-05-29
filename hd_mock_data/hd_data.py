@@ -535,7 +535,7 @@ class HDMockData:
 
 
     def coadded_fg_spectrum(self, output_lmax=None):
-         """Returns the power spectrum of the residual extragalactic foregrounds
+        """Returns the power spectrum of the residual extragalactic foregrounds
         in temperature for CMB-HD, coadded from 90 and 150 GHz.
 
         Parameters
