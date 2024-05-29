@@ -3,6 +3,32 @@ import warnings
 import numpy as np
 
 def binning_matrix(bin_edges, lmin=None, lmax=None, start_at_ell=2):
+    """Create a (num_bins, num_ells) binning matrix, which will bin the values
+    between `lmin` and `lmax` in a vector/matrix containing values for each
+    multipole between the `start_at_ell` and `lmax` values. For example, for
+    an array `c_ell` holding a power spectrum with a value at each multipole
+    `ell` in the range [2, 5000], to bin only the values in the range [30, 3000],
+    you would pass `lmin = 30`, `lmax = 3000`, and `start_at_ell=2`.
+
+    Parameters
+    ----------
+    bin_edges : array of int
+        A one dimensional array holding the upper bin edge for each bin,
+        except the first element, which is the lower bin edge of the first bin.
+    lmin, lmax : int or None, default=None
+        The minimum and maximum multipole values of the quantity to be binned,
+        i.e. only values between `lmin` and `lmax` will be binned. If `lmin` is
+        `None`, we use the first value in the `bin_edges` array; if `lmax`
+        is `None`, we use the last value in the `bin_edges` array.
+    start_at_ell : int, default=2
+        The minimum multipole value in the quantity to be binned. This is
+        typically either `0` or `2`.
+
+    Returns
+    -------
+    binmat : array of float
+        The two-dimensional binning matrix of shape (num_bins, num_ells).
+    """
     lmin = int(lmin) if (lmin is not None) else int(bin_edges[0])
     lmax = int(lmax) if (lmax is not None) else int(bin_edges[-1])
     ell_min = int(start_at_ell)
@@ -87,7 +113,7 @@ class HDMockData:
         # keep track of versions for each kind of file:
         self.binning_versions = ['v1.0', 'v1.1']
         self.theo_versions = ['v1.0', 'v1.1']
-        self.mcmc_bandpower_versions = ['v1.0']
+        self.mcmc_bandpower_versions = ['v1.0', 'v1.1']
         self.fg_versions = ['v1.0', 'v1.1']
         self.cl_ksz_versions = ['v1.1']
         self.cmb_noise_versions = ['v1.0', 'v1.1'] # includes FG in TT
@@ -177,16 +203,40 @@ class HDMockData:
     # binning:
 
     def bin_edges_fname(self):
+        """Returns the absolute path to the file holding the bin edges."""
         version = self.get_compatible_version(self.binning_versions, 'binning file')
         return self.binning_path(f'bin_edges_{version}.txt')
    
 
     def bin_edges(self):
+        """Returns an array of bin edges."""
         bin_edges = np.loadtxt(self.bin_edges_fname())
         return bin_edges
 
     
     def binning_matrix(self, lmin=None, lmax=None):
+        """Create a (num_bins, num_ells) binning matrix, which will bin the values
+        between `lmin` and `lmax` in a vector/matrix containing values for each
+        multipole between the `start_at_ell` and `lmax` values. For example, for
+        an array `c_ell` holding a power spectrum with a value at each multipole
+        `ell` in the range [2, 5000], to bin only the values in the range [30, 3000],
+        you would pass `lmin = 30`, `lmax = 3000`, and `start_at_ell=2`.
+
+        Parameters
+        ----------
+        lmin, lmax : int or None, default=None
+            The minimum and maximum multipole values of the quantity to be binned,
+            i.e. only values between `lmin` and `lmax` will be binned. If `lmin` 
+            or `lmax` is `None`, the default values for CMB-HD are used. 
+        start_at_ell : int, default=2
+            The minimum multipole value in the quantity to be binned. This is
+            typically either `0` or `2`.
+
+        Returns
+        -------
+        binmat : array of float
+            The two-dimensional binning matrix of shape (num_bins, num_ells).
+        """
         if lmin is None:
             lmin = self.lmin
         if lmax is None:
@@ -204,6 +254,38 @@ class HDMockData:
     # theory spectra
     
     def cmb_theory_fname(self, cmb_type, baryonic_feedback=False):
+        """Returns the name of the file containing the theory CMB and lensing
+        spectra.
+
+        Parameters
+        ----------
+        cmb_type : str
+            The name of the kind of CMB spectra. Must be either `'lensed'`,
+            `'delensed'`, or `'unlensed'`.
+        baryonic_feedback : bool, default=False
+            If `True`, the file name returned will be for a file holding 
+            theory calculated with the HMCode2020 + baryonic feedback 
+            non-linear model, as opposed to the HMCode2016 CDM-only model.
+
+        Returns
+        -------
+        fname : str
+            The absolute path and name of the requested file.
+
+        Raises
+        ------
+        ValueError
+            If an unrecognized `cmb_type` was passed.
+
+        Note
+        ----
+        The file will have a column for the multipoles of the spectra, the 
+        CMB TT, TE, EE, and BB power spectra (in units of uK^2, without
+        any multiplicative factors applied), and the lensing power spectrum,
+        using the convention C_L^kk = [L(L+1)]^2 * C_L^phiphi / 4, where
+        L is the lensing multipole and C_L^phiphi is the CMB lensing
+        potential power spectrum.
+        """
         if cmb_type.lower() not in self.cmb_types:
             errmsg = (f"Unknown `cmb_type`: `'{cmb_type}'`. The `cmb_type` "
                      f"must be one of: {self.cmb_types}.")
@@ -219,6 +301,39 @@ class HDMockData:
 
 
     def cmb_theory_spectra(self, cmb_type, baryonic_feedback=False, output_lmax=None):
+        """Returns a dictionary containing the theory CMB and lensing spectra.
+
+        Parameters
+        ----------
+        cmb_type : str
+            The name of the kind of CMB spectra. Must be either `'lensed'`,
+            `'delensed'`, or `'unlensed'`.
+        baryonic_feedback : bool, default=False
+            If `True`, the file name returned will be for a file holding 
+            theory calculated with the HMCode2020 + baryonic feedback 
+            non-linear model, as opposed to the HMCode2016 CDM-only model.
+
+        Returns
+        -------
+        theo : dict of array of float
+            A dictionary with a key `'ells'` holding the multipoles for the
+            power spectra; keys `'tt'`, `'te'`, `'ee'`, and `'bb'` for the
+            CMB power spectra for the requested `cmb_type`; and a key`'kk'`
+            for the CMB lensing spectrum.
+
+        Raises
+        ------
+        ValueError
+            If an unrecognized `cmb_type` was passed.
+
+        Note
+        ----
+        The CMB TT, TE, EE, and BB power spectra are in units of uK^2,
+        without any multiplicative factors applied. The CMB lensing power
+        spectrum uses the convention C_L^kk = [L(L+1)]^2 * C_L^phiphi / 4,
+        where L is the lensing multipole and C_L^phiphi is the CMB lensing
+        potential power spectrum.
+        """
         fname = self.cmb_theory_fname(cmb_type, baryonic_feedback=baryonic_feedback)
         theo = load_from_file(fname, self.theo_cols)
         if output_lmax is not None:
@@ -237,6 +352,38 @@ class HDMockData:
     
             
     def mcmc_bandpowers_fname(self, cmb_type, baryonic_feedback=False):
+        """Returns the absolute path to the file containing the MCMC bandpowers.
+        
+        Parameters
+        ----------
+        cmb_type : str
+            The name of the kind of CMB spectra. Must be either `'lensed'`,
+            `'delensed'`, or `'unlensed'`.
+        baryonic_feedback : bool, default=False
+            If `True`, the file name returned will be for a file holding 
+            theory calculated with the HMCode2020 + baryonic feedback 
+            non-linear model, as opposed to the HMCode2016 CDM-only model.
+
+        Returns
+        -------
+        fname : str
+            The absolute path and name of the requested file.
+
+        Raises
+        ------
+        ValueError
+            If an unrecognized `cmb_type` was passed.
+
+        Note
+        ----
+        The bandpowers are the binned theory spectra stored as a single column,
+        in the order TT, TE, EE, BB, kappakappa.
+        The CMB TT, TE, EE, and BB power spectra are in units of uK^2,
+        without any multiplicative factors applied. The CMB lensing power
+        spectrum uses the convention C_L^kk = [L(L+1)]^2 * C_L^phiphi / 4,
+        where L is the lensing multipole and C_L^phiphi is the CMB lensing
+        potential power spectrum.
+        """
         if cmb_type.lower() not in self.cmb_types[:-1]:
             errmsg = (f"Invalid `cmb_type`: `'{cmb_type}'`. The `cmb_type` "
                      f"must be one of: {self.cmb_types[:-1]}.")
@@ -250,6 +397,37 @@ class HDMockData:
 
     
     def mcmc_bandpowers(self, cmb_type, baryonic_feedback=False):
+        """Returns an array holding the MCMC bandpowers.
+        
+        Parameters
+        ----------
+        cmb_type : str
+            The name of the kind of CMB spectra. Must be either `'lensed'`,
+            `'delensed'`, or `'unlensed'`.
+        baryonic_feedback : bool, default=False
+            If `True`, the file name returned will be for a file holding 
+            theory calculated with the HMCode2020 + baryonic feedback 
+            non-linear model, as opposed to the HMCode2016 CDM-only model.
+
+        Returns
+        -------
+        bandpowers : array of float
+            The binned CMB and lensing theory, stored as a single 1D array,
+            with the binned theory stacked in the order TT, TE, EE, BB, kk.
+
+        Raises
+        ------
+        ValueError
+            If an unrecognized `cmb_type` was passed.
+
+        Note
+        ----
+        The CMB TT, TE, EE, and BB power spectra are in units of uK^2,
+        without any multiplicative factors applied. The CMB lensing power
+        spectrum uses the convention C_L^kk = [L(L+1)]^2 * C_L^phiphi / 4,
+        where L is the lensing multipole and C_L^phiphi is the CMB lensing
+        potential power spectrum.
+        """
         fname = self.mcmc_bandpowers_fname(cmb_type, baryonic_feedback=baryonic_feedback)
         bandpowers = np.loadtxt(fname)
         return bandpowers
@@ -258,6 +436,26 @@ class HDMockData:
     # FG:
     
     def fg_spectra_fname(self, freq):
+        """Returns the name of the file containing the residual extragalactic
+        foreground power spectra for CMB-HD.
+
+        Parameters
+        ----------
+        frequency : str or int
+            Pass `90` or `'f090'` for a file containing columns for the
+            different foreground components at 90 GHz, or pass `150` or
+            `'f150'` for the corresponding file at 150 GHz.
+
+        Returns
+        -------
+        fname : str
+            The file name (including its absolute path).
+
+        Raises
+        ------
+        ValueError
+            If an invalid `frequency` was passed.
+        """
         if freq not in self.freqs:
             if '90' in str(freq):
                 freq = 'f090'
@@ -273,6 +471,38 @@ class HDMockData:
 
 
     def fg_spectra(self, freq, output_lmax=None):
+        """Returns a dictionary holding power spectra of residual extragalactic
+        foregrounds in temperature at the given frequency for CMB-HD.
+
+        Parameters
+        ----------
+        frequency : str or int
+            The frequency for the foreground power spectra. Pass `90` or
+            `'f090'` for the foreground components at 90 GHz, or pass `150`
+            or  `'f150'` for the foregrounds at 150 GHz.
+        output_lmax : int or None, default=None
+            If provided, cut the spectra at a maximum multipole given by the
+            `output_lmax` value.
+
+        Returns
+        -------
+        fgs : dict of array_like of float
+            A dictionary of one-dimensional arrays with a key `'ells'` holding
+            the multipoles of the power spectra, and keys `'ksz'`, `'tsz'`,
+            `'cib'`, and `'radio'` holding the residual foreground power
+            spectra for reionization kSZ, tSZ, CIB, and radio sources,
+            respectively.
+
+        Raises
+        ------
+        ValueError
+            If an invalid `frequency` was passed.
+
+        Note
+        ----
+        The power spectra are in units of uK^2, without any multiplicative
+        factors applied.
+        """
         fname = self.fg_spectra_fname(freq)
         fg = load_from_file(fname, self.fg_cols)
         if output_lmax is not None:
@@ -291,12 +521,41 @@ class HDMockData:
 
 
     def coadded_fg_spectrum_fname(self):
+        """Returns the name of the file containing the coadded foreground
+        power spectrum for the combination of 90 and 150 GHz for CMB-HD.
+
+        Returns
+        -------
+        fname : str
+            The file name (including its absolute path).
+        """
         version = self.get_compatible_version(self.fg_versions, 'coadded foreground spectrum')
         fname = f'cmbhd_coadd_f090f150_total_fg_cls_{version}.txt'
         return self.fg_path(fname)
 
 
     def coadded_fg_spectrum(self, output_lmax=None):
+         """Returns the power spectrum of the residual extragalactic foregrounds
+        in temperature for CMB-HD, coadded from 90 and 150 GHz.
+
+        Parameters
+        ----------
+        output_lmax : int or None, default=None
+            If provided, cut the spectra at a maximum multipole given by the
+            `output_lmax` value.
+
+        Returns
+        -------
+        ells, coadd_fg_cls : array_like of float
+            One-dimensional arrays holding the multipoles of the foreground
+            power spectrum (`ells`) and the coadded foreground power spectrum
+            (`coadd_fg_cls`).
+
+        Note
+        ----
+        The power spectrum is in units of uK^2, without any multiplicative
+        factors applied.
+        """
         fname = self.coadded_fg_spectrum_fname()
         ells, cl_fg = np.loadtxt(fname, unpack=True)
         if output_lmax is not None:
@@ -316,12 +575,33 @@ class HDMockData:
         
         
     def cl_ksz_fname(self):
+        """Returns the name of the file holding the kSZ power spectrum."""
         version = self.get_compatible_version(self.cl_ksz_versions, 'total kSZ power spectrum')
         fname = f'cmbhd_total_ksz_cls_{version}.txt'
         return self.fg_path(fname)
 
     
     def cl_ksz(self, output_lmax=None):
+        """Returns a tuple of arrays holding the kSZ power spectrum and 
+        the corresponding multipoles.
+
+        Parameters
+        ----------
+        output_lmax : int or None, default=None
+            If provided, cut the spectra at a maximum multipole given by the
+            `output_lmax` value.
+
+        Returns
+        -------
+        ells, cl_ksz : array_like of float
+            One-dimensional arrays holding the multipoles of the kSZ power
+            spectrum (`ells`) and the kSZ power spectrum itself (`cl_ksz`).
+
+        Note
+        ----
+        The power spectrum is in units of uK^2, without any multiplicative
+        factors applied.
+        """
         fname = self.cl_ksz_fname()
         ells, cl_ksz = np.loadtxt(fname, unpack=True)
         if output_lmax is not None:
@@ -343,6 +623,33 @@ class HDMockData:
     # noise spectra:
 
     def white_noise_cls(self, freq, output_lmax=None):
+        """Returns a dictionary of the beam-deconvolved instrumental noise 
+        spectra for CMB-HD TT, TE, EE, and BB power spectra at the given 
+        frequency.
+        
+        Parameters
+        ----------
+        frequency : str or int
+            The frequency for the noise power spectra. Pass `90` or `'f090'` 
+            for the instrumental noise at 90 GHz, or pass `150` or `'f150'` 
+            for the instrumental noise at 150 GHz.
+        output_lmax : int or None, default=None
+            If provided, cut the spectra at a maximum multipole given by the
+            `output_lmax` value.
+
+        Returns
+        -------
+        noise : dict of array_like of float
+            A dictionary with a key `'ells'` whose value is a one-dimensional
+            array holding the multipoles for the noise spectra, and keys `'tt'`,
+            `'te'`, `'ee'`, and `'bb'` for one-dimensional arrays holding the
+            corresponding noise power spectra.
+
+        Note
+        ----
+        The noise spectra are in units of uK^2, without any multiplicative
+        factors applied.
+        """
         if freq not in self.freqs:
             if '90' in str(freq):
                 freq = 'f090'
@@ -381,6 +688,27 @@ class HDMockData:
 
     
     def cmb_noise_fname(self, include_fg=True):
+        """Returns the name of the file containing the power spectra of the
+        noise on the CMB TT, TE, EE, and BB spectra.
+        
+        Parameters
+        ----------
+        include_fg : bool, default=True
+            If `True`, the temperature noise in the returned file is the sum of
+            the instrumental noise and the residual extragalactic foreground
+            power spectrum. If `False`, it will only contain instrumental noise.
+
+        Returns
+        -------
+        fname : str
+            The name of the file holding the requested noise spectra.
+
+        Note
+        ----
+        The returned file will have a column for the multipoles of the spectra,
+        and columns for the CMB TT, TE, EE, and BB noise spectra (in units
+        of uK^2, without any multiplicative factors applied).
+        """
         if include_fg:
             version = self.get_compatible_version(self.cmb_noise_versions, f'coadded CMB noise + foregrounds')
             lmax = self.lmaxTT
@@ -394,6 +722,32 @@ class HDMockData:
         
 
     def cmb_noise_spectra(self, include_fg=True, output_lmax=None):
+        """Returns a dictionary containing the power spectra of the noise on 
+        the CMB TT, TE, EE, and BB spectra, and the corresponding multipoles.
+        
+        Parameters
+        ----------
+        include_fg : bool, default=True
+            If `True`, the temperature noise power spectrum is the sum of
+            the instrumental noise and the residual extragalactic foreground
+            power spectrum. If `False`, it will only contain instrumental noise.
+        output_lmax : int or None, default=None
+            If provided, cut the spectrum at a maximum multipole given by the
+            `output_lmax` value.
+
+        Returns
+        -------
+        noise : dict of array of float
+            A dictionary with a key `'ells'` whose value is a one-dimensional
+            array holding the multipoles for the noise spectra, and keys `'tt'`,
+            `'te'`, `'ee'`, and `'bb'` for one-dimensional arrays holding the
+            corresponding noise power spectra.
+
+        Note
+        ----
+        The noise spectra are in units of uK^2, without any multiplicative
+        factors applied.
+        """
         fname = self.cmb_noise_fname(include_fg=include_fg)
         noise = load_from_file(fname, self.theo_cols[:-1])
         if output_lmax is not None:
@@ -412,12 +766,34 @@ class HDMockData:
 
 
     def lensing_noise_fname(self):
+        """Returns the absolute path to the file holding the CMB lensing noise."""
         version = self.get_compatible_version(self.lensing_noise_versions, 'lensing noise')
         fname = f'hd_lmin{self.nlkk_lmin}lmax{self.nlkk_lmax}Lmax{self.nlkk_Lmax}_nlkk_{version}.txt'
         return self.noise_path(fname)
 
 
     def lensing_noise_spectrum(self, output_Lmax=None):
+        """Returns the CMB lensing noise spectrum and the corresponding
+        lensing multipoles.
+
+        Parameters
+        ----------
+        output_Lmax : int or None, default=None
+            If provided, cut the spectrum at a maximum multipole given by the
+            `output_Lmax` value.
+
+        Returns
+        -------
+        L, nlkk : array_like of float
+            One-dimensional arrays containing the lensing multipoles (`L`)
+            and the lensing noise spectrum (`nlkk`).
+
+        Note
+        ----
+        The CMB lensing noise N_L^kk is the noise on the CMB lensing spectrum
+        C_L^kk = [L(L+1)]^2 * C_L^phiphi / 4, where C_L^phiphi is the CMB
+        lensing potential power spectrum and L is the lensing multipole.
+        """
         fname = self.lensing_noise_fname()
         L, nlkk = np.loadtxt(fname, unpack=True)
         if output_Lmax is not None:
@@ -438,6 +814,24 @@ class HDMockData:
     # covmats:
 
     def block_covmat_fname(self, cmb_type):
+        """Returns the name of the file holding the covariance matrix for the
+        mock CMB-HD TT, TE, EE, BB and CMB lensing power spectra for the
+        the given CMB type (lensed or delensed).
+
+        Parameters
+        ----------
+        cmb_type : str
+            If `cmb_type='delensed'`, the file holds a covariance matrix for
+            delensed CMB TT, TE, EE, and BB power spectra, in addition to the
+            CMB lensing spectrum. If `cmb_type='lensed'`, the covariance matrix
+            is for lensed CMB spectra instead, but otherwise includes the same
+            set of power spectra as the delensed case.
+
+        Returns
+        -------
+        fname : str
+            The name of the file that contains the requested covariance matrix.
+        """
         if cmb_type.lower() not in self.cmb_types[:-1]:
             errmsg = (f"Invalid `cmb_type`: `'{cmb_type}'`. The `cmb_type` "
                      f"must be one of: {self.cmb_types[:-1]}.")
@@ -451,11 +845,57 @@ class HDMockData:
 
 
     def block_covmat(self, cmb_type):
+        """Returns the covariance matrix for the mock lensed or delensed 
+        CMB TT, TE, EE, BB and CMB lensing power spectra. 
+
+        Parameters
+        ----------
+        cmb_type : str
+            If `cmb_type='delensed'`, returns a covariance matrix for delensed
+            CMB TT, TE, EE, and BB power spectra, in addition to the CMB
+            lensing spectrum. If `cmb_type='lensed'`, the covariance matrix is
+            for lensed CMB spectra instead, but otherwise includes the same
+            set of power spectra as the delensed case.
+
+        Returns
+        -------
+        covmat : array of float
+            A two-dimensional array holding the full covariance matrix for the
+            mock CMB power spectra.
+
+        Note
+        ----
+        The covariance matrix is binned and contains 25 blocks; each block
+        has shape `(nbin, nbin)`, where `nbin` is the number of bins in the
+        multipole range for CMB-HD. The diagonal blocks contain
+        the covariance matrices for TT x TT, TE x TE, EE x EE, BB x BB, and
+        kk x kk, where kk refers to the CMB lensing spectrum. The off-diagonal
+        blocks contain the cross-covariances, e.g. TT x TE, TT x EE, etc.
+        We use units of  uK^2 for the CMB spectra, and do not apply any
+        multiplicative factors. For the CMB lensing spectrum, we use the
+        convention C_L^kk = [L(L+1)]^2 * C_L^phiphi / 4, where C_L^phiphi is
+        the CMB lensing potential power spectrum and L is the lensing multipole.
+        """
         fname = self.block_covmat_fname(cmb_type)
-        return np.loadtxt(fname)
+        covmat = np.loadtxt(fname)
+        return covmat
 
 
     def tt_diag_covmat_fname(self, cmb_type):
+        """Returns the name of the file holding the diagonal covariance matrix 
+        for the mock CMB-HD lensed or delensed TT power spectrum in the 
+        multipole range from 20,100 to 40,000.
+
+        Parameters
+        ----------
+        cmb_type : str
+            Either `'lensed'` or `'delensed'`.
+
+        Returns
+        -------
+        fname : str
+            The name of the file that contains the requested covariance matrix.
+        """
         if cmb_type.lower() not in self.cmb_types[:-1]:
             errmsg = (f"Invalid `cmb_type`: `'{cmb_type}'`. The `cmb_type` "
                      f"must be one of: {self.cmb_types[:-1]}.")
@@ -469,8 +909,23 @@ class HDMockData:
 
 
     def tt_diag_covmat(self, cmb_type):
+        """Returns the  diagonal covariance matrix for the mock CMB-HD lensed 
+        or delensed TT power spectrum in the multipole range from 20,100 to 40,000.
+
+        Parameters
+        ----------
+        cmb_type : str
+            Either `'lensed'` or `'delensed'`.
+
+        Returns
+        -------
+        covmat : array of float
+            A two-dimensional array holding the diagonal covariance matrix for the
+            TT power spectrum.
+        """
         fname = self.tt_diag_covmat_fname(cmb_type)
-        return np.loadtxt(fname)
+        covmat = np.loadtxt(fname)
+        return covmat
         
     
 
