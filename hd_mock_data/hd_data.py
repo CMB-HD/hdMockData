@@ -1,6 +1,7 @@
 import os
 import warnings
 import numpy as np
+import yaml
 
 def binning_matrix(bin_edges, lmin=None, lmax=None, start_at_ell=2):
     """Create a (num_bins, num_ells) binning matrix, which will bin the values
@@ -101,7 +102,7 @@ def get_compatible_version(version, available_versions):
 
 class HDMockData:
     def __init__(self, version='latest'):
-        self.data_versions = ['v1.0', 'v1.1']
+        self.data_versions = ['v1.0', 'v1.1', 'v1.2']
         self.latest_version = self.data_versions[-1]
         if 'late' in version.lower():
             self.version = self.latest_version
@@ -112,26 +113,26 @@ class HDMockData:
 
         # keep track of versions for each kind of file:
         self.binning_versions = ['v1.0', 'v1.1']
-        self.theo_versions = ['v1.0', 'v1.1']
-        self.mcmc_bandpower_versions = ['v1.0', 'v1.1']
-        self.fg_versions = ['v1.0', 'v1.1']
+        self.theo_versions = self.data_versions
+        self.mcmc_bandpower_versions = self.data_versions
+        self.fg_versions =  ['v1.0', 'v1.1'] # TODO
         self.cl_ksz_versions = ['v1.1']
-        self.cmb_noise_versions = ['v1.0', 'v1.1'] # includes FG in TT
-        self.cmb_white_noise_versions = ['v1.0'] # white noise only
-        self.lensing_noise_versions = ['v1.0']
-        self.covmat_versions = ['v1.0', 'v1.1'] # full 5 x 5 covmat, 30 < ell < 20k
+        self.cmb_noise_versions = self.data_versions # includes FG in TT
+        self.cmb_white_noise_versions = ['v1.0', 'v1.2'] # white noise only
+        self.lensing_noise_versions = ['v1.0', 'v1.2']
+        self.covmat_versions = self.data_versions # full 5 x 5 covmat, 30 < ell < 20k
         self.tt_covmat_versions = ['v1.1'] # diagonal TTxTT, 20k < ell < 40k
+        self.nlkk_pol_versions = ['v1.2'] # polarization-only lensing reconstruction
+        self.camb_theo_versions = ['v1.0', 'v1.2'] # CAMB settings
+        self.class_theo_versions = ['v1.2'] # CLASS settings / theory spectra 
 
         # multipoles:
         self.lmin = 30
         self.lmax = 20100
         self.Lmin = 30
         self.Lmax = 20100
-        if self.version_number > 1.0:
-            self.lmaxTT = 40000
-        else:
-            self.lmaxTT = 20100
-        # currently, white noise saved up to lmax = 40,000;
+        self.lmaxTT = 40000 if (self.version == 'v1.1') else self.lmax
+        # currently, coadded white noise saved up to lmax = 40,000;
         # make this a variable, in case it gets updated in the future:
         self.cmb_white_noise_lmax = 40000
         # same as above for multipoles used to calculate lensing noise:
@@ -146,19 +147,36 @@ class HDMockData:
         self.covmat_Lmax = 20100
         self.tt_covmat_lmin = 20100
         self.tt_covmat_lmax = 40000
-        
+        # lmax for theory and noise spectra:
+        if self.version in ['v1.0', 'v1.1']:
+            self.theo_lmax = self.lmaxTT
+            self.noise_lmax = self.lmaxTT
+        else:
+            self.theo_lmax = 24000
+            self.noise_lmax = 23900 # max. bin edge for sim-based noise
+
         self.fsky = 0.6
+        if self.version == 'v1.2':
+            self.fsky *= 0.985 # 1.5% of the sky is masked after FG cleaning
         self.ells = np.arange(self.lmaxTT + 1)
         self.theo_cols = ['ells', 'tt', 'te', 'ee', 'bb', 'kk']
         self.noise_cols = self.theo_cols[:-1]
-        self.fg_cols = ['ells', 'ksz', 'tsz', 'cib', 'radio']
+        if self.version in ['v1.0', 'v1.1']:
+            self.fg_cols = ['ells', 'ksz', 'tsz', 'cib', 'radio']
+        else:
+            self.fg_cols = ['ells', 'ksz', 'tsz', 'cib_radio']
         self.cmb_types = ['lensed', 'delensed', 'unlensed']
         self.freqs = ['f090', 'f150']
         self.noise_levels = {'f090': 0.7, 'f150': 0.8} # uK-arcmin
         self.beam_fwhm = {'f090': 0.42, 'f150': 0.25} # arcmin
-        self.aso_noise_levels = {'f090': 3.5, 'f150': 3.8} # uK-arcmin
+        # use enhanced SO BB noise for ell < 1000:
+        if self.version in ['v1.0', 'v1.1']: # prelim noise levels
+            self.aso_noise_levels = {'f090': 3.5, 'f150': 3.8} # uK-arcmin
+        else: # from table 1 of arXiv:2503.00636
+            self.aso_noise_levels = {'f090': 3.8, 'f150': 4.1} # uK-arcmin
         self.aso_beam_fwhm = {'f090': 2.2, 'f150': 1.4} # arcmin
 
+        # paths to files:
         self.data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data/')
         self.data_path = lambda x: os.path.join(self.data_dir, x)
         self.binning_path = lambda x: os.path.join(self.data_path('binning'), x)
@@ -168,6 +186,7 @@ class HDMockData:
         self.noise_path = lambda x: os.path.join(self.data_path('noise'), x)
         self.fg_path = lambda x: os.path.join(self.data_path('foregrounds'), x)
         self.covmat_path = lambda x: os.path.join(self.data_path('covariance_matrices'), x)
+        self.class_sbbn_file = self.theo_path('PRIMAT_Yp_DH_ErrorMC_2021_CLASS.dat')
 
 
     def check_version(self, version):
@@ -184,19 +203,24 @@ class HDMockData:
         return version
 
 
-    def get_compatible_version(self, available_versions, description):
+    def get_compatible_version(self, available_versions, description,
+                               allow_higher_version=True):
+        compatible_version = None
         if self.version in available_versions:
             compatible_version = self.version
-        else:
-            compatible_version = None
+        elif allow_higher_version:
             for v in available_versions:
                 if self.version_number >= get_version_number(v):
                     compatible_version = v
-            if compatible_version is None:
-                errmsg = (f"No {description} available for version "
-                          f"`'{self.version}'`. You must use version "
-                          f"`'{available_versions[0]}'` or higher.")
-                raise NotImplementedError(errmsg)
+        if compatible_version is None:
+            if allow_higher_version:
+                vinfo = f"version `'{available_versions[0]}'` or higher"
+            else:
+                versions = ', '.join([f"`'{v}'`" for v in available_versions])
+                vinfo = f"one of the following versions: {versions}"
+            errmsg = (f"No {description} available for version "
+                      f"`'{self.version}'`. You must use {vinfo}.")
+            raise NotImplementedError(errmsg)
         return compatible_version
 
     
@@ -241,19 +265,21 @@ class HDMockData:
             lmin = self.lmin
         if lmax is None:
             lmax = self.lmax
-        if lmax > self.lmaxTT:
+        bin_edges = self.bin_edges()
+        bin_lmax = int(bin_edges[-1])
+        if lmax > bin_lmax:
             errmsg = (f"The requested `lmax = {lmax}` is too high for version "
                       f"`'{self.version}'`; the binning is stored up to "
-                      f"`lmax = {self.lmaxTT}`.")
+                      f"`lmax = {bin_lmax}`.")
             raise ValueError(errmsg)
-        bin_edges = self.bin_edges()
         bmat = binning_matrix(bin_edges, lmin=lmin, lmax=lmax, start_at_ell=2)
         return bmat
 
 
     # theory spectra
     
-    def cmb_theory_fname(self, cmb_type, baryonic_feedback=False):
+    def cmb_theory_fname(self, cmb_type, baryonic_feedback=False,
+                         pol_only_lensing=False, use_class=False):
         """Returns the name of the file containing the theory CMB and lensing
         spectra.
 
@@ -263,9 +289,19 @@ class HDMockData:
             The name of the kind of CMB spectra. Must be either `'lensed'`,
             `'delensed'`, or `'unlensed'`.
         baryonic_feedback : bool, default=False
-            If `True`, the file name returned will be for a file holding 
-            theory calculated with the HMCode2020 + baryonic feedback 
+            If `True`, the file name returned will be for a file holding
+            theory calculated with the HMCode2020 + baryonic feedback
             non-linear model, as opposed to the HMCode2016 CDM-only model.
+        pol_only_lensing : bool, default=False
+            If `True`, the lensing reconstruction noise used to delens
+            the CMB power spectra was calculated with only the EE and EB
+            estimators. By default, the TT, TE, TB, EE, and EB estimators
+            are used. Only an option for delensed power spectra and data
+            versions >= 1.2.
+        use_class : bool, default=False
+            If `True`, the theory was calculated using CLASS; by default,
+            it is calculated using CAMB. Only an option for lensed or
+            unlensed power spectra and data versions >= 1.2.
 
         Returns
         -------
@@ -275,32 +311,46 @@ class HDMockData:
         Raises
         ------
         ValueError
-            If an unrecognized `cmb_type` was passed.
+            If an unrecognized `cmb_type` was passed, or if
+            `cmb_type='delensed'` and `use_class=True`.
 
         Note
         ----
-        The file will have a column for the multipoles of the spectra, the 
+        The file will have a column for the multipoles of the spectra, the
         CMB TT, TE, EE, and BB power spectra (in units of uK^2, without
         any multiplicative factors applied), and the lensing power spectrum,
         using the convention C_L^kk = [L(L+1)]^2 * C_L^phiphi / 4, where
         L is the lensing multipole and C_L^phiphi is the CMB lensing
         potential power spectrum.
         """
-        if cmb_type.lower() not in self.cmb_types:
-            errmsg = (f"Unknown `cmb_type`: `'{cmb_type}'`. The `cmb_type` "
-                     f"must be one of: {self.cmb_types}.")
-            raise ValueError(errmsg)
+        cmb_type = cmb_type.lower()
+        if cmb_type not in self.cmb_types:
+            raise ValueError(f"Unknown `cmb_type`: `'{cmb_type}'`. The `cmb_type` "
+                             f"must be one of: {self.cmb_types}.")
         version = self.get_compatible_version(self.theo_versions, f'{cmb_type} theory spectra')
+        if use_class:
+            version = self.get_compatible_version(self.class_theo_versions, 'CLASS theory power spectra')
+            if cmb_type == 'delensed':
+                raise ValueError(f"`{cmb_type = }` and `{use_class = }`. CLASS does not calculate "
+                                 "delensed power spectra; you must pass `cmb_type='lensed'` or "
+                                 "`cmb_type='unlensed'` to load in CLASS theory power spectra.")
+            theo_info = f'{cmb_type}_CLASS'
+        elif (cmb_type == 'delensed') and pol_only_lensing:
+            version = self.get_compatible_version(self.nlkk_pol_versions, 'polarization-only lensing')
+            theo_info = f'{cmb_type}_MVpol'
+        else:
+            theo_info = cmb_type
         lmin = self.lmin
-        lmax = self.lmaxTT # theory saved up to max. value of lmax
-        fname = f'hd_lmin{lmin}lmax{lmax}_{cmb_type.lower()}_cls_{version}.txt'
+        lmax = self.theo_lmax
+        fname = f'hd_lmin{lmin}lmax{lmax}_{theo_info}_cls_{version}.txt'
         if baryonic_feedback:
             return self.cdm_baryons_theo_path(fname)
         else:
             return self.cdm_theo_path(fname)
 
 
-    def cmb_theory_spectra(self, cmb_type, baryonic_feedback=False, output_lmax=None):
+    def cmb_theory_spectra(self, cmb_type, baryonic_feedback=False, output_lmax=None,
+                           pol_only_lensing=False, use_class=False):
         """Returns a dictionary containing the theory CMB and lensing spectra.
 
         Parameters
@@ -309,9 +359,19 @@ class HDMockData:
             The name of the kind of CMB spectra. Must be either `'lensed'`,
             `'delensed'`, or `'unlensed'`.
         baryonic_feedback : bool, default=False
-            If `True`, the file name returned will be for a file holding 
-            theory calculated with the HMCode2020 + baryonic feedback 
+            If `True`, the file name returned will be for a file holding
+            theory calculated with the HMCode2020 + baryonic feedback
             non-linear model, as opposed to the HMCode2016 CDM-only model.
+        pol_only_lensing : bool, default=False
+            If `True`, the lensing reconstruction noise used to delens
+            the CMB power spectra was calculated with only the EE and EB
+            estimators. By default, the TT, TE, TB, EE, and EB estimators
+            are used. Only an option for `cmb_type='delensed'` and data
+            versions >= 1.2.
+        use_class : bool, default=False
+            If `True`, the theory was calculated using CLASS; by default,
+            it is calculated using CAMB. Only an option for lensed or
+            unlensed power spectra and data versions >= 1.2.
 
         Returns
         -------
@@ -324,7 +384,8 @@ class HDMockData:
         Raises
         ------
         ValueError
-            If an unrecognized `cmb_type` was passed.
+            If an unrecognized `cmb_type` was passed, or if
+            `cmb_type='delensed'` and `use_class=True`.
 
         Note
         ----
@@ -334,7 +395,9 @@ class HDMockData:
         where L is the lensing multipole and C_L^phiphi is the CMB lensing
         potential power spectrum.
         """
-        fname = self.cmb_theory_fname(cmb_type, baryonic_feedback=baryonic_feedback)
+        fname = self.cmb_theory_fname(cmb_type, baryonic_feedback=baryonic_feedback,
+                                      pol_only_lensing=pol_only_lensing,
+                                      use_class=use_class)
         theo = load_from_file(fname, self.theo_cols)
         if output_lmax is not None:
             theo_lmax = int(theo['ells'][-1])
@@ -351,18 +414,29 @@ class HDMockData:
         return theo
     
             
-    def mcmc_bandpowers_fname(self, cmb_type, baryonic_feedback=False):
+    def mcmc_bandpowers_fname(self, cmb_type, baryonic_feedback=False,
+                              pol_only_lensing=False, use_class=False):
         """Returns the absolute path to the file containing the MCMC bandpowers.
-        
+
         Parameters
         ----------
         cmb_type : str
             The name of the kind of CMB spectra. Must be either `'lensed'`,
             `'delensed'`, or `'unlensed'`.
         baryonic_feedback : bool, default=False
-            If `True`, the file name returned will be for a file holding 
-            theory calculated with the HMCode2020 + baryonic feedback 
+            If `True`, the file name returned will be for a file holding
+            theory calculated with the HMCode2020 + baryonic feedback
             non-linear model, as opposed to the HMCode2016 CDM-only model.
+        pol_only_lensing : bool, default=False
+            If `True`, the lensing reconstruction noise used to delens
+            the CMB power spectra was calculated with only the EE and EB
+            estimators. By default, the TT, TE, TB, EE, and EB estimators
+            are used. Only an option for `cmb_type='delensed'` and data
+            versions >= 1.2.
+        use_class : bool, default=False
+            If `True`, the theory was calculated using CLASS; by default,
+            it is calculated using CAMB. Only an option for lensed or
+            unlensed power spectra and data versions >= 1.2.
 
         Returns
         -------
@@ -372,7 +446,8 @@ class HDMockData:
         Raises
         ------
         ValueError
-            If an unrecognized `cmb_type` was passed.
+            If an unrecognized `cmb_type` was passed, or if
+            `cmb_type='delensed'` and `use_class=True`.
 
         Note
         ----
@@ -384,30 +459,54 @@ class HDMockData:
         where L is the lensing multipole and C_L^phiphi is the CMB lensing
         potential power spectrum.
         """
-        if cmb_type.lower() not in self.cmb_types[:-1]:
+        cmb_type = cmb_type.lower()
+        if cmb_type not in self.cmb_types[:-1]:
             errmsg = (f"Invalid `cmb_type`: `'{cmb_type}'`. The `cmb_type` "
-                     f"must be one of: {self.cmb_types[:-1]}.")
+                      f"must be one of: {self.cmb_types[:-1]}.")
             raise ValueError(errmsg)
         version = self.get_compatible_version(self.mcmc_bandpower_versions, f'{cmb_type} MCMC bandpowers')
-        fname = f'hd_lmin{self.lmin}lmax{self.lmax}_{cmb_type.lower()}_bandpowers_mcmc_{version}.txt'
+        if use_class:
+            version = self.get_compatible_version(self.class_theo_versions, 'CLASS theory power spectra')
+            if cmb_type == 'delensed':
+                raise ValueError(f"`{cmb_type = }` and `{use_class = }`. CLASS does not calculate "
+                                 "delensed power spectra; you must pass `cmb_type='lensed'` to "
+                                 "load in CLASS bandpowers.")
+            theo_info = f'{cmb_type}_CLASS'
+        elif (cmb_type == 'delensed') and pol_only_lensing:
+            version = self.get_compatible_version(self.nlkk_pol_versions, 'polarization-only lensing')
+            theo_info = f'{cmb_type}_MVpol'
+        else:
+            theo_info = cmb_type
+        fname = f'hd_lmin{self.lmin}lmax{self.lmax}_{theo_info}_bandpowers_mcmc_{version}.txt'
         if baryonic_feedback:
             return self.cdm_baryons_theo_path(fname)
         else:
             return self.cdm_theo_path(fname)
 
-    
-    def mcmc_bandpowers(self, cmb_type, baryonic_feedback=False):
+
+    def mcmc_bandpowers(self, cmb_type, baryonic_feedback=False,
+                        pol_only_lensing=False, use_class=False):
         """Returns an array holding the MCMC bandpowers.
-        
+
         Parameters
         ----------
         cmb_type : str
             The name of the kind of CMB spectra. Must be either `'lensed'`,
             `'delensed'`, or `'unlensed'`.
         baryonic_feedback : bool, default=False
-            If `True`, the file name returned will be for a file holding 
-            theory calculated with the HMCode2020 + baryonic feedback 
-            non-linear model, as opposed to the HMCode2016 CDM-only model.
+            If `True`, returns bandpowers calculated with the HMCode2020
+            + baryonic feedback non-linear model, as opposed to the
+            HMCode2016 CDM-only model.
+        pol_only_lensing : bool, default=False
+            If `True`, the lensing reconstruction noise used to delens
+            the CMB power spectra was calculated with only the EE and EB
+            estimators. By default, the TT, TE, TB, EE, and EB estimators
+            are used. Only an option for `cmb_type='delensed'` and data
+            versions >= 1.2.
+        use_class : bool, default=False
+            If `True`, the theory was calculated using CLASS; by default,
+            it is calculated using CAMB. Only an option for lensed or
+            unlensed power spectra and data versions >= 1.2.
 
         Returns
         -------
@@ -418,7 +517,8 @@ class HDMockData:
         Raises
         ------
         ValueError
-            If an unrecognized `cmb_type` was passed.
+            If an unrecognized `cmb_type` was passed, or if
+            `cmb_type='delensed'` and `use_class=True`.
 
         Note
         ----
@@ -428,7 +528,8 @@ class HDMockData:
         where L is the lensing multipole and C_L^phiphi is the CMB lensing
         potential power spectrum.
         """
-        fname = self.mcmc_bandpowers_fname(cmb_type, baryonic_feedback=baryonic_feedback)
+        fname = self.mcmc_bandpowers_fname(cmb_type, baryonic_feedback=baryonic_feedback,
+                                           pol_only_lensing=pol_only_lensing, use_class=use_class)
         bandpowers = np.loadtxt(fname)
         return bandpowers
 
@@ -465,7 +566,7 @@ class HDMockData:
                 errmsg = (f"Invalid frequency: `freq = {freq}`. "
                           f"Options are: {self.freqs}")
                 raise ValueError(errmsg)
-        version = self.get_compatible_version(self.fg_versions, 'foreground spectra')
+        version = self.get_compatible_version(self.fg_versions, 'foreground spectra', allow_higher_version=False) # TODO
         fname = f'cmbhd_fg_cls_{freq}_{version}.txt'
         return self.fg_path(fname)
 
@@ -529,7 +630,7 @@ class HDMockData:
         fname : str
             The file name (including its absolute path).
         """
-        version = self.get_compatible_version(self.fg_versions, 'coadded foreground spectrum')
+        version = self.get_compatible_version(self.fg_versions, 'coadded foreground spectrum', allow_higher_version=False) # TODO
         fname = f'cmbhd_coadd_f090f150_total_fg_cls_{version}.txt'
         return self.fg_path(fname)
 
@@ -688,8 +789,10 @@ class HDMockData:
 
     
     def cmb_noise_fname(self, include_fg=True):
-        """Returns the name of the file containing the power spectra of the
-        noise on the CMB TT, TE, EE, and BB spectra.
+        """
+        Returns the name of the file containing the power spectra of the
+        noise on the CMB TT, TE, EE, and BB spectra, coadded from 90 and 
+        150 GHz.
         
         Parameters
         ----------
@@ -711,7 +814,7 @@ class HDMockData:
         """
         if include_fg:
             version = self.get_compatible_version(self.cmb_noise_versions, f'coadded CMB noise + foregrounds')
-            lmax = self.lmaxTT
+            lmax = self.noise_lmax
             fg_info = 'withfg'
         else:
             version = self.get_compatible_version(self.cmb_white_noise_versions, f'coadded CMB white noise')
@@ -722,8 +825,10 @@ class HDMockData:
         
 
     def cmb_noise_spectra(self, include_fg=True, output_lmax=None):
-        """Returns a dictionary containing the power spectra of the noise on 
-        the CMB TT, TE, EE, and BB spectra, and the corresponding multipoles.
+        """
+        Returns a dictionary containing the power spectra of the noise on
+        the CMB TT, TE, EE, and BB spectra, coadded from 90 and 150 GHz, 
+        and the corresponding multipoles.
         
         Parameters
         ----------
@@ -765,14 +870,33 @@ class HDMockData:
         return noise
 
 
-    def lensing_noise_fname(self):
-        """Returns the absolute path to the file holding the CMB lensing noise."""
+    def lensing_noise_fname(self, pol_only_lensing=False):
+        """
+        The CMB lensing noise file name.
+
+        Parameters
+        ----------
+        pol_only_lensing : bool, default=False
+            If `True`, the lensing reconstruction noise was calculated
+            with only the EE and EB estimators. By default, the TT, TE,
+            TB, EE, and EB estimators are used. Only an option for data
+            versions >= 1.2.
+
+        Returns
+        -------
+        str
+            The absolute path to the file holding the CMB lensing noise.
+        """
         version = self.get_compatible_version(self.lensing_noise_versions, 'lensing noise')
-        fname = f'hd_lmin{self.nlkk_lmin}lmax{self.nlkk_lmax}Lmax{self.nlkk_Lmax}_nlkk_{version}.txt'
+        if pol_only_lensing:
+            version = self.get_compatible_version(self.nlkk_pol_versions, 'polarization-only lensing')
+        nlkk_info = 'nlkk_MVpol' if pol_only_lensing else 'nlkk'
+        ell_info = f'lmin{self.nlkk_lmin}lmax{self.nlkk_lmax}Lmax{self.nlkk_Lmax}'
+        fname = f'hd_{ell_info}_{nlkk_info}_{version}.txt'
         return self.noise_path(fname)
 
 
-    def lensing_noise_spectrum(self, output_Lmax=None):
+    def lensing_noise_spectrum(self, output_Lmax=None, pol_only_lensing=False):
         """Returns the CMB lensing noise spectrum and the corresponding
         lensing multipoles.
 
@@ -781,6 +905,11 @@ class HDMockData:
         output_Lmax : int or None, default=None
             If provided, cut the spectrum at a maximum multipole given by the
             `output_Lmax` value.
+        pol_only_lensing : bool, default=False
+            If `True`, the lensing reconstruction noise was calculated
+            with only the EE and EB estimators. By default, the TT, TE,
+            TB, EE, and EB estimators are used. Only an option for data
+            versions >= 1.2.
 
         Returns
         -------
@@ -794,7 +923,7 @@ class HDMockData:
         C_L^kk = [L(L+1)]^2 * C_L^phiphi / 4, where C_L^phiphi is the CMB
         lensing potential power spectrum and L is the lensing multipole.
         """
-        fname = self.lensing_noise_fname()
+        fname = self.lensing_noise_fname(pol_only_lensing=pol_only_lensing)
         L, nlkk = np.loadtxt(fname, unpack=True)
         if output_Lmax is not None:
             noise_Lmax = int(L[-1])
@@ -813,7 +942,7 @@ class HDMockData:
 
     # covmats:
 
-    def block_covmat_fname(self, cmb_type):
+    def block_covmat_fname(self, cmb_type, pol_only_lensing=False):
         """Returns the name of the file holding the covariance matrix for the
         mock CMB-HD TT, TE, EE, BB and CMB lensing power spectra for the
         the given CMB type (lensed or delensed).
@@ -826,6 +955,12 @@ class HDMockData:
             CMB lensing spectrum. If `cmb_type='lensed'`, the covariance matrix
             is for lensed CMB spectra instead, but otherwise includes the same
             set of power spectra as the delensed case.
+        pol_only_lensing : bool, default=False
+            If `True`, the covariance matrix was calculated with only the
+            EE and EB estimators used for the lensing reconstruction
+            noise (which will also change the delensed power spectra).
+            By default, the TT, TE, TB, EE, and EB estimators are used.
+            Only an option for data versions >= 1.2.
 
         Returns
         -------
@@ -837,16 +972,20 @@ class HDMockData:
                      f"must be one of: {self.cmb_types[:-1]}.")
             raise ValueError(errmsg)
         version = self.get_compatible_version(self.covmat_versions, f'{cmb_type} full covariance matrix')
+        if pol_only_lensing:
+            version = self.get_compatible_version(self.nlkk_pol_versions, 'polarization-only lensing')
         lmin = self.covmat_lmin
         lmax = self.covmat_lmax
         cmb_type = cmb_type.lower()
-        fname = f'hd_fsky0pt6_lmin{lmin}lmax{lmax}_binned_{cmb_type}_cov_{version}.txt'
+        fsky = 'pt'.join(str(round(self.fsky,3)).split('.'))
+        cov_info = 'MVpol_cov' if pol_only_lensing else 'cov'
+        fname = f'hd_fsky{fsky}_lmin{lmin}lmax{lmax}_binned_{cmb_type}_{cov_info}_{version}.txt'
         return self.covmat_path(fname)
 
 
-    def block_covmat(self, cmb_type):
-        """Returns the covariance matrix for the mock lensed or delensed 
-        CMB TT, TE, EE, BB and CMB lensing power spectra. 
+    def block_covmat(self, cmb_type, pol_only_lensing=False):
+        """Returns the covariance matrix for the mock lensed or delensed
+        CMB TT, TE, EE, BB and CMB lensing power spectra.
 
         Parameters
         ----------
@@ -856,6 +995,12 @@ class HDMockData:
             lensing spectrum. If `cmb_type='lensed'`, the covariance matrix is
             for lensed CMB spectra instead, but otherwise includes the same
             set of power spectra as the delensed case.
+        pol_only_lensing : bool, default=False
+            If `True`, the covariance matrix was calculated with only the
+            EE and EB estimators used for the lensing reconstruction
+            noise (which will also change the delensed power spectra).
+            By default, the TT, TE, TB, EE, and EB estimators are used.
+            Only an option for data versions >= 1.2.
 
         Returns
         -------
@@ -876,7 +1021,7 @@ class HDMockData:
         convention C_L^kk = [L(L+1)]^2 * C_L^phiphi / 4, where C_L^phiphi is
         the CMB lensing potential power spectrum and L is the lensing multipole.
         """
-        fname = self.block_covmat_fname(cmb_type)
+        fname = self.block_covmat_fname(cmb_type, pol_only_lensing=pol_only_lensing)
         covmat = np.loadtxt(fname)
         return covmat
 
@@ -900,11 +1045,14 @@ class HDMockData:
             errmsg = (f"Invalid `cmb_type`: `'{cmb_type}'`. The `cmb_type` "
                      f"must be one of: {self.cmb_types[:-1]}.")
             raise ValueError(errmsg)
-        version = self.get_compatible_version(self.tt_covmat_versions, f'{cmb_type} TT x TT diagonal covariance matrix')
+        version = self.get_compatible_version(self.tt_covmat_versions, 
+                                              f'{cmb_type} TT x TT diagonal covariance matrix',
+                                              allow_higher_version=False)
         lmin = self.tt_covmat_lmin
         lmax = self.tt_covmat_lmax
         cmb_type = cmb_type.lower()
-        fname = f'hd_fsky0pt6_lmin{lmin}lmax{lmax}_binned_{cmb_type}_TTxTT_cov_{version}.txt'
+        fsky = 'pt'.join(str(round(self.fsky,3)).split('.'))
+        fname = f'hd_fsky{fsky}_lmin{lmin}lmax{lmax}_binned_{cmb_type}_TTxTT_cov_{version}.txt'
         return self.covmat_path(fname)
 
 
@@ -926,6 +1074,146 @@ class HDMockData:
         fname = self.tt_diag_covmat_fname(cmb_type)
         covmat = np.loadtxt(fname)
         return covmat
-        
     
+
+    # theory code settings:
+
+    def camb_settings_fname(self, baryonic_feedback=False):
+        """
+        Path to the file that contains CAMB parameters (cosmology,
+        accuracy, etc.).
+
+        Parameters
+        ----------
+        baryonic_feedback : bool, default=False
+            If `True`, the file name returned will be for a file holding
+            settings for the HMCode2020 + baryonic feedback non-linear
+            model, as opposed to the HMCode2016 CDM-only model.
+
+        Returns
+        -------
+        str
+            The path to the file.
+
+        Notes
+        -----
+        The file does not contain the maximum multipole `lmax`.
+        """
+        version = self.get_compatible_version(self.camb_theo_versions, 'CAMB parameters')
+        fname = f'camb_params_{version}.yaml'
+        if baryonic_feedback:
+            return self.cdm_baryons_theo_path(fname)
+        else:
+            return self.cdm_theo_path(fname)
+
+
+    def camb_settings(self, baryonic_feedback=False, lmax=None):
+        """
+        Path to the file that contains CAMB parameters (cosmology,
+        accuracy, etc.).
+
+        Parameters
+        ----------
+        baryonic_feedback : bool, default=False
+            If `True`, the file name returned will be for a file holding
+            settings for the HMCode2020 + baryonic feedback non-linear
+            model, as opposed to the HMCode2016 CDM-only model.
+        lmax : int or None, optional
+            The maximum multipole to use for the calculation. By default,
+            the `theo_lmax` attribute is used. We pass `lmax+500` to CAMB.
+
+        Returns
+        -------
+        params : dict
+            A dictionary of CAMB settings.
+
+        Notes
+        -----
+        The returned `params` dict can be passed to the `camb.set_params`
+        function, e.g. `pars = camb.set_params(**params)`.
+        """
+        fname = self.camb_settings_fname(baryonic_feedback=baryonic_feedback)
+        with open(fname, 'r') as f:
+            params = yaml.safe_load(f)
+        lmax = self.theo_lmax if (lmax is None) else int(lmax)
+        params['lmax'] = lmax + 500
+        return params
+
+
+    def class_settings_fname(self, baryonic_feedback=False):
+        """
+        Path to the file that contains CLASS parameters (cosmology,
+        accuracy, etc.).
+
+        Parameters
+        ----------
+        baryonic_feedback : bool, default=False
+            If `True`, the file name returned will be for a file holding
+            settings for the HMCode2020 + baryonic feedback non-linear
+            model, as opposed to the HMCode2016 CDM-only model.
+
+        Returns
+        -------
+        str
+            The path to the file.
+
+        Notes
+        -----
+        The file does not contain the maximum multipole `l_max_scalars`,
+        or the path to the `sBBN file` provided with `hdMockData`.
+        """
+        version = self.get_compatible_version(self.class_theo_versions, 'CLASS parameters')
+        fname = f'class_params_{version}.yaml'
+        if baryonic_feedback:
+            return self.cdm_baryons_theo_path(fname)
+        else:
+            return self.cdm_theo_path(fname)
+
+
+    def class_settings(self, baryonic_feedback=False, lmax=None):
+        """
+        Path to the file that contains CLASS parameters (cosmology,
+        accuracy, etc.).
+
+        Parameters
+        ----------
+        baryonic_feedback : bool, default=False
+            If `True`, the file name returned will be for a file holding
+            settings for the HMCode2020 + baryonic feedback non-linear
+            model, as opposed to the HMCode2016 CDM-only model.
+        lmax : int or None, optional
+            The maximum multipole to use for the calculation. By default,
+            the `theo_lmax` attribute is used. We pass `lmax+500` to CLASS.
+
+        Returns
+        -------
+        params : dict
+            A dictionary of CLASS settings.
+
+        Notes
+        -----
+        The CLASS settings include `accurate_lensing=1`; when this is
+        used, CLASS cannot calculate the power spectra past a maximum
+        multipole of about 14,000, which is lower than the default
+        `l_max_scalars` used (given by the `theo_lmax` attribute).
+        See arXiv:XXXX.XXXXX (!! TODO:LINK2ZACK !! ) for instructions to
+        modify CLASS so that a higher `l_max_scalars` can be used with
+        `accurate_lensing=1`.
+
+        The returned `params` dict can be passed to the `classy.Class.set`
+        method, e.g. by calling `cosmo = classy.Class()` and
+        `cosmo.set(params)`.
+        """
+        fname = self.class_settings_fname(baryonic_feedback=baryonic_feedback)
+        with open(fname, 'r') as f:
+            params = yaml.safe_load(f)
+        params['sBBN file'] = self.class_sbbn_file
+        lmax = self.theo_lmax if (lmax is None) else int(lmax)
+        params['l_max_scalars'] = lmax + 500
+        if (lmax > 14000) and (params['accurate_lensing'] > 0):
+            msg = ("By default, CLASS cannot calculate the power spectra with "
+                   f"`accurate_lensing = {params['accurate_lensing']}` and "
+                   f"`l_max_scalars` = {lmax+500}.") # TODO : add ref. to paper for instructions
+            warnings.warn(msg)
+        return params
 

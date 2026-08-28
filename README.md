@@ -16,7 +16,7 @@ If you use any of the data, please cite (see "Data versions" below):
 
 There are no requirements to access the data files themselves; they are stored in the `hd_mock_data/data` directory. 
 
-To easily load the files using the Python functions in `hd_mock_data/hd_data.py`, you must have Python (version >=3) and [NumPy](https://numpy.org/) installed. Then, simply clone this repository and install with `pip`:
+To easily load the files using the Python functions in `hd_mock_data/hd_data.py`, you must have Python (version >=3), [NumPy](https://numpy.org/), and [PyYAML](https://pyyaml.org/wiki/PyYAMLDocumentation) installed. Then, simply clone this repository and install with `pip`:
 
 ```
 git clone https://github.com/CMB-HD/hdMockData.git
