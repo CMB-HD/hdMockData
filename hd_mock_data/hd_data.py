@@ -115,7 +115,7 @@ class HDMockData:
         self.binning_versions = ['v1.0', 'v1.1']
         self.theo_versions = self.data_versions
         self.mcmc_bandpower_versions = self.data_versions
-        self.fg_versions =  ['v1.0', 'v1.1'] # TODO
+        self.fg_versions = self.data_versions
         self.cl_ksz_versions = ['v1.1']
         self.cmb_noise_versions = self.data_versions # includes FG in TT
         self.cmb_white_noise_versions = ['v1.0', 'v1.2'] # white noise only
@@ -123,7 +123,7 @@ class HDMockData:
         self.covmat_versions = self.data_versions # full 5 x 5 covmat, 30 < ell < 20k
         self.tt_covmat_versions = ['v1.1'] # diagonal TTxTT, 20k < ell < 40k
         self.nlkk_pol_versions = ['v1.2'] # polarization-only lensing reconstruction
-        self.camb_theo_versions = ['v1.0', 'v1.2'] # CAMB settings
+        self.camb_theo_versions = self.data_versions # CAMB settings
         self.class_theo_versions = ['v1.2'] # CLASS settings / theory spectra 
 
         # multipoles:
@@ -164,7 +164,7 @@ class HDMockData:
         if self.version in ['v1.0', 'v1.1']:
             self.fg_cols = ['ells', 'ksz', 'tsz', 'cib', 'radio']
         else:
-            self.fg_cols = ['ells', 'ksz', 'tsz', 'cib_radio']
+            self.fg_cols = ['ells', 'tsz', 'cib_radio']
         self.cmb_types = ['lensed', 'delensed', 'unlensed']
         self.freqs = ['f090', 'f150']
         self.noise_levels = {'f090': 0.7, 'f150': 0.8} # uK-arcmin
@@ -222,6 +222,17 @@ class HDMockData:
                       f"`'{self.version}'`. You must use {vinfo}.")
             raise NotImplementedError(errmsg)
         return compatible_version
+
+
+    def get_freq(self, freq):
+        if freq not in self.freqs:
+            if '90' in str(freq):
+                freq = 'f090'
+            elif ('150' in str(freq)) or ('148' in str(freq)):
+                freq = 'f150'
+            else:
+                raise ValueError(f"Invalid frequency: `freq = {freq}`. Options are: {self.freqs}")
+        return freq
 
     
     # binning:
@@ -537,8 +548,9 @@ class HDMockData:
     # FG:
     
     def fg_spectra_fname(self, freq):
-        """Returns the name of the file containing the residual extragalactic
-        foreground power spectra for CMB-HD.
+        """Returns the name of the file containing the residual
+        extragalactic foreground power spectra at the given frequency 
+        for CMB-HD.
 
         Parameters
         ----------
@@ -556,17 +568,19 @@ class HDMockData:
         ------
         ValueError
             If an invalid `frequency` was passed.
+
+        Notes
+        -----
+        For version 1.2, the residual extragalactic foreground power
+        spectra is obtained from simulations by applying the
+        foreground-cleaning procedure described in arXiv:XXXX.XXXXX. (!! TODO:LINK2PAPER !!)
+        Since CIB and radio sources are removed simultaneously, we
+        provide the sum of the residual CIB and radio sources, instead
+        of separate CIB and radio power spectra. Since the kSZ signal is
+        not removed, we do not include the kSZ power spectrum in the file.
         """
-        if freq not in self.freqs:
-            if '90' in str(freq):
-                freq = 'f090'
-            elif '150' in str(freq):
-                freq = 'f150'
-            else:
-                errmsg = (f"Invalid frequency: `freq = {freq}`. "
-                          f"Options are: {self.freqs}")
-                raise ValueError(errmsg)
-        version = self.get_compatible_version(self.fg_versions, 'foreground spectra', allow_higher_version=False) # TODO
+        freq = self.get_freq(freq)
+        version = self.get_compatible_version(self.fg_versions, 'foreground spectra')
         fname = f'cmbhd_fg_cls_{freq}_{version}.txt'
         return self.fg_path(fname)
 
@@ -588,26 +602,46 @@ class HDMockData:
         Returns
         -------
         fgs : dict of array_like of float
-            A dictionary of one-dimensional arrays with a key `'ells'` holding
-            the multipoles of the power spectra, and keys `'ksz'`, `'tsz'`,
-            `'cib'`, and `'radio'` holding the residual foreground power
-            spectra for reionization kSZ, tSZ, CIB, and radio sources,
-            respectively.
+            A dictionary of one-dimensional arrays with the following
+            keys and values:
+            - `'ells'` : The multipoles of the power spectra, starting
+                         at zero.
+            - `'ksz'` : The kSZ power spectrum (reionzation-only for
+                        version 1.0, total reionization + late-time
+                        otherwise).
+            - `'tsz'` : The residual tSZ power spectrum.
+            * In versions 1.0 and 1.1:
+              - `'cib'` : The residual CIB power spectrum.
+              - `'radio'` : The residual radio power spectrum.
+            * In version 1.2:
+              - `'cib_radio'` : The total residual CIB and radio power
+                                spectrum.
 
         Raises
         ------
         ValueError
             If an invalid `frequency` was passed.
 
-        Note
-        ----
+        Notes
+        -----
         The power spectra are in units of uK^2, without any multiplicative
         factors applied.
+
+        For version 1.2, the residual extragalactic foreground power
+        spectra is obtained from simulations by applying the
+        foreground-cleaning procedure described in arXiv:XXXX.XXXXX. (!! TODO:LINK2PAPER !!)
+        Since CIB and radio sources are removed simultaneously, we
+        provide the sum of the residual CIB and radio sources, instead
+        of separate CIB and radio power spectra. The simlation-based
+        power spectra are originally binned, so the returned power
+        spectra have been interpolated to each multipole.
         """
         fname = self.fg_spectra_fname(freq)
         fg = load_from_file(fname, self.fg_cols)
+        fg_lmax = int(fg['ells'][-1])
+        if 'ksz' not in fg:
+            _, fg['ksz'] = self.cl_ksz(output_lmax=fg_lmax)
         if output_lmax is not None:
-            fg_lmax = int(fg['ells'][-1])
             output_lmax = int(output_lmax)
             if output_lmax > fg_lmax:
                 msg = (f"The requested `output_lmax = {output_lmax}` is "
@@ -630,7 +664,7 @@ class HDMockData:
         fname : str
             The file name (including its absolute path).
         """
-        version = self.get_compatible_version(self.fg_versions, 'coadded foreground spectrum', allow_higher_version=False) # TODO
+        version = self.get_compatible_version(self.fg_versions, 'coadded foreground spectrum')
         fname = f'cmbhd_coadd_f090f150_total_fg_cls_{version}.txt'
         return self.fg_path(fname)
 
@@ -751,15 +785,7 @@ class HDMockData:
         The noise spectra are in units of uK^2, without any multiplicative
         factors applied.
         """
-        if freq not in self.freqs:
-            if '90' in str(freq):
-                freq = 'f090'
-            elif '150' in str(freq):
-                freq = 'f150'
-            else:
-                errmsg = (f"Invalid frequency: `freq = {freq}`. "
-                          f"Options are: {self.freqs}")
-                raise ValueError(errmsg)
+        freq = self.get_freq(freq)
         if output_lmax is None:
             ells = self.ells.copy()
         else:
@@ -786,6 +812,105 @@ class HDMockData:
         nls['ells'] = ells
         return nls
 
+
+    def noise_cls_fname(self, freq):
+        """Returns the name of the file containing the total noise on the
+        CMB power spectra for CMB-HD at a given frequency, including
+        residual extragalactic foregrounds in temperature.
+
+        Parameters
+        ----------
+        frequency : str or int
+            Pass `90` or `'f090'` for a file containing columns for the
+            different foreground components at 90 GHz, or pass `150` or
+            `'f150'` for the corresponding file at 150 GHz.
+
+        Returns
+        -------
+        fname : str
+            The file name (including its absolute path).
+
+        Raises
+        ------
+        ValueError
+            If an invalid `frequency` was passed.
+        """
+        freq = self.get_freq(freq)
+        version = self.get_compatible_version(self.fg_versions, 'CMB noise + foreground spectra')
+        fname = f'cmbhd_total_noise_fg_cls_{freq}_{version}.txt'
+        return self.noise_path(fname)
+
+
+    def noise_cls(self, freq, output_lmax=None, include_fg=True):
+        """Returns a dictionary holding the noise on the CMB power spectra
+        for CMB-HD at the given frequency, with or without residual
+        extragalactic foregrounds in temperature.
+
+        Parameters
+        ----------
+        frequency : str or int
+            The frequency for the power spectra. Pass `90` or `'f090'`
+            for the noise at 90 GHz, or pass `150` or `'f150'` for the
+            noise at 150 GHz.
+        output_lmax : int or None, default=None
+            If provided, cut the spectra at a maximum multipole given by the
+            `output_lmax` value.
+        include_fg : bool, default=True
+            If `True`, the temperature noise power spectrum includes
+            the instrumental noise and the residual extragalactic foregrounds.
+            If `False`, it will only contain instrumental noise.
+
+        Returns
+        -------
+        noise : dict of array of float
+            A dictionary with a key `'ells'` whose value is a one-dimensional
+            array holding the multipoles for the noise spectra, and keys `'tt'`,
+            `'te'`, `'ee'`, and `'bb'` for one-dimensional arrays holding the
+            corresponding noise power spectra.
+
+        Raises
+        ------
+        ValueError
+            If an invalid `frequency` was passed.
+
+        See Also
+        --------
+        cmb_noise_spectra : Coadded 90+150 GHz CMB noise power spectra.
+
+        Notes
+        -----
+        The power spectra are in units of uK^2, without any multiplicative
+        factors applied.
+
+        In version 1.2, the temperature power spectrum is obtained by
+        applying the foreground-cleaning procedure described in
+        arXiv:XXXX.XXXXX (!! TODO:LINK2PAPER !!)
+        to maps with the lensed CMB, white noise, kSZ,
+        tSZ, CIB, and radio galaxies, and then taking the power spectrum
+        of the foreground-cleaned temperature map after subtracting the
+        lensed CMB realization from the map. Note that this will not
+        precisely equal the sum of the residual foreground spectra and
+        temperature white noise spectrum returned by `fg_spectra` and
+        `white_noise_cls`, respectively, due to correlations between the
+        different components in the map. The simlation-based temperature
+        power spectrum is originally binned, so it has been interpolated
+        to each multipole. The polarization power spectra are calculated
+        for the CMB-HD noise levels using the `white_noise_cls` method.
+        """
+        if not include_fg:
+            noise = self.white_noise_cls(freq, output_lmax=output_lmax)
+        else:
+            fname = self.noise_cls_fname(freq)
+            noise = load_from_file(fname, self.noise_cols)
+            noise_lmax = int(noise['ells'][-1])
+            output_lmax = int(output_lmax) if (output_lmax is not None) else self.lmaxTT
+            if output_lmax > noise_lmax:
+                msg = (f"The requested `output_lmax = {output_lmax}` is higher than the maximum "
+                       f"multipole of the spectra. Returning spectra up to `lmax = {noise_lmax}`.")
+                warnings.warn(msg)
+            for key in noise.keys():
+                noise[key] = noise[key][:output_lmax+1]
+        return noise
 
     
     def cmb_noise_fname(self, include_fg=True):
@@ -833,9 +958,9 @@ class HDMockData:
         Parameters
         ----------
         include_fg : bool, default=True
-            If `True`, the temperature noise power spectrum is the sum of
-            the instrumental noise and the residual extragalactic foreground
-            power spectrum. If `False`, it will only contain instrumental noise.
+            If `True`, the temperature noise power spectrum includes
+            the instrumental noise and the residual extragalactic foregrounds.
+            If `False`, it will only contain instrumental noise.
         output_lmax : int or None, default=None
             If provided, cut the spectrum at a maximum multipole given by the
             `output_lmax` value.
@@ -848,13 +973,19 @@ class HDMockData:
             `'te'`, `'ee'`, and `'bb'` for one-dimensional arrays holding the
             corresponding noise power spectra.
 
+        See Also
+        --------
+        noise_cls : 
+            The CMB noise, with or without residual extragalactic 
+            foregrounds, at 90 or 150 GHz.
+
         Note
         ----
         The noise spectra are in units of uK^2, without any multiplicative
         factors applied.
         """
         fname = self.cmb_noise_fname(include_fg=include_fg)
-        noise = load_from_file(fname, self.theo_cols[:-1])
+        noise = load_from_file(fname, self.noise_cols)
         if output_lmax is not None:
             noise_lmax = int(noise['ells'][-1])
             output_lmax = int(output_lmax)
@@ -1107,7 +1238,7 @@ class HDMockData:
             return self.cdm_theo_path(fname)
 
 
-    def camb_settings(self, baryonic_feedback=False, lmax=None):
+    def camb_settings(self, baryonic_feedback=False):
         """
         Path to the file that contains CAMB parameters (cosmology,
         accuracy, etc.).
@@ -1118,9 +1249,6 @@ class HDMockData:
             If `True`, the file name returned will be for a file holding
             settings for the HMCode2020 + baryonic feedback non-linear
             model, as opposed to the HMCode2016 CDM-only model.
-        lmax : int or None, optional
-            The maximum multipole to use for the calculation. By default,
-            the `theo_lmax` attribute is used. We pass `lmax+500` to CAMB.
 
         Returns
         -------
@@ -1135,8 +1263,7 @@ class HDMockData:
         fname = self.camb_settings_fname(baryonic_feedback=baryonic_feedback)
         with open(fname, 'r') as f:
             params = yaml.safe_load(f)
-        lmax = self.theo_lmax if (lmax is None) else int(lmax)
-        params['lmax'] = lmax + 500
+        params['lmax'] = self.theo_lmax + 500
         return params
 
 
@@ -1170,7 +1297,7 @@ class HDMockData:
             return self.cdm_theo_path(fname)
 
 
-    def class_settings(self, baryonic_feedback=False, lmax=None):
+    def class_settings(self, baryonic_feedback=False):
         """
         Path to the file that contains CLASS parameters (cosmology,
         accuracy, etc.).
@@ -1181,9 +1308,6 @@ class HDMockData:
             If `True`, the file name returned will be for a file holding
             settings for the HMCode2020 + baryonic feedback non-linear
             model, as opposed to the HMCode2016 CDM-only model.
-        lmax : int or None, optional
-            The maximum multipole to use for the calculation. By default,
-            the `theo_lmax` attribute is used. We pass `lmax+500` to CLASS.
 
         Returns
         -------
@@ -1194,7 +1318,7 @@ class HDMockData:
         -----
         The CLASS settings include `accurate_lensing=1`; when this is
         used, CLASS cannot calculate the power spectra past a maximum
-        multipole of about 14,000, which is lower than the default
+        multipole of about 14,000, which is lower than the value of
         `l_max_scalars` used (given by the `theo_lmax` attribute).
         See arXiv:XXXX.XXXXX (!! TODO:LINK2ZACK !! ) for instructions to
         modify CLASS so that a higher `l_max_scalars` can be used with
@@ -1208,12 +1332,11 @@ class HDMockData:
         with open(fname, 'r') as f:
             params = yaml.safe_load(f)
         params['sBBN file'] = self.class_sbbn_file
-        lmax = self.theo_lmax if (lmax is None) else int(lmax)
-        params['l_max_scalars'] = lmax + 500
-        if (lmax > 14000) and (params['accurate_lensing'] > 0):
-            msg = ("By default, CLASS cannot calculate the power spectra with "
-                   f"`accurate_lensing = {params['accurate_lensing']}` and "
-                   f"`l_max_scalars` = {lmax+500}.") # TODO : add ref. to paper for instructions
-            warnings.warn(msg)
+        params['l_max_scalars'] = self.theo_lmax + 500
+        # warn about the need to modify class:
+        msg = ("By default, CLASS cannot calculate the power spectra with "
+               f"`accurate_lensing = {params['accurate_lensing']}` and "
+               f"`l_max_scalars` = {self.theo_lmax+500}.") # TODO : add ref. to paper for instructions
+        warnings.warn(msg)
         return params
 

@@ -2,14 +2,13 @@ AccuracyBoost: 1.1
 As: 2.0989031673191437e-09
 DoLateRadTruncation: false
 H0: 67.36
-HMCode_logT_AGN: 7.8
 NonLinear: NonLinear_both
-halofit_version: mead2020_feedback
+halofit_version: mead2016
 lAccuracyBoost: 3.0
 lSampleBoost: 3.0
 lens_margin: 2050
 lens_potential_accuracy: 30
-lmax : 20600
+lmax : 40500
 mnu: 0.06
 nnu: 3.046
 ns: 0.9649

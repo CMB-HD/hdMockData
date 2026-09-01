@@ -15,6 +15,7 @@ l_logstep: 1.025
 l_max_g: 40
 l_max_ncdm: 30
 l_max_pol_g: 60
+l_max_scalars: 24500
 l_max_ur: 35
 l_switch_limber: 30.0
 lensing: 'yes'

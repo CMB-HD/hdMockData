@@ -11,6 +11,7 @@ lAccuracyBoost: 3.0
 lSampleBoost: 3.0
 lens_margin: 2050
 lens_potential_accuracy: 30
+lmax : 24500
 min_l_logl_sampling: 10000
 mnu: 0.06
 nnu: 3.044
