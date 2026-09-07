@@ -914,10 +914,9 @@ class HDMockData:
 
     
     def cmb_noise_fname(self, include_fg=True):
-        """
-        Returns the name of the file containing the power spectra of the
-        noise on the CMB TT, TE, EE, and BB spectra, coadded from 90 and 
-        150 GHz.
+        """Returns the name of the file containing the power spectra of 
+        the noise on the CMB TT, TE, EE, and BB spectra, coadded from 90 
+        and 150 GHz.
         
         Parameters
         ----------
@@ -950,10 +949,9 @@ class HDMockData:
         
 
     def cmb_noise_spectra(self, include_fg=True, output_lmax=None):
-        """
-        Returns a dictionary containing the power spectra of the noise on
-        the CMB TT, TE, EE, and BB spectra, coadded from 90 and 150 GHz, 
-        and the corresponding multipoles.
+        """Returns a dictionary containing the power spectra of the noise 
+        on the CMB TT, TE, EE, and BB spectra, coadded from 90 and 
+        150 GHz, and the corresponding multipoles.
         
         Parameters
         ----------
@@ -1002,8 +1000,7 @@ class HDMockData:
 
 
     def lensing_noise_fname(self, pol_only_lensing=False):
-        """
-        The CMB lensing noise file name.
+        """The CMB lensing noise file name.
 
         Parameters
         ----------
@@ -1209,9 +1206,8 @@ class HDMockData:
 
     # theory code settings:
 
-    def camb_settings_fname(self, baryonic_feedback=False):
-        """
-        Path to the file that contains CAMB parameters (cosmology,
+    def camb_settings_fname(self, baryonic_feedback=False, use_H0=False):
+        """Path to the file that contains CAMB parameters (cosmology,
         accuracy, etc.).
 
         Parameters
@@ -1220,6 +1216,9 @@ class HDMockData:
             If `True`, the file name returned will be for a file holding
             settings for the HMCode2020 + baryonic feedback non-linear
             model, as opposed to the HMCode2016 CDM-only model.
+        use_H0 : bool, default=False
+            Whether to use the Hubble constant `H0` instead of the
+            cosmoMC theta parameter `cosmomc_theta`.
 
         Returns
         -------
@@ -1231,17 +1230,16 @@ class HDMockData:
         The file does not contain the maximum multipole `lmax`.
         """
         version = self.get_compatible_version(self.camb_theo_versions, 'CAMB parameters')
-        fname = f'camb_params_{version}.yaml'
+        H0info = '_useH0' if use_H0 else ''
+        fname = f'camb_params{H0info}_{version}.yaml'
         if baryonic_feedback:
             return self.cdm_baryons_theo_path(fname)
         else:
             return self.cdm_theo_path(fname)
 
 
-    def camb_settings(self, baryonic_feedback=False):
-        """
-        Path to the file that contains CAMB parameters (cosmology,
-        accuracy, etc.).
+    def camb_settings(self, baryonic_feedback=False, use_H0=False):
+        """Dictionary of CAMB parameters (cosmology, accuracy, etc.).
 
         Parameters
         ----------
@@ -1249,6 +1247,9 @@ class HDMockData:
             If `True`, the file name returned will be for a file holding
             settings for the HMCode2020 + baryonic feedback non-linear
             model, as opposed to the HMCode2016 CDM-only model.
+        use_H0 : bool, default=False
+            Whether to use the Hubble constant `H0` instead of the
+            cosmoMC theta parameter `cosmomc_theta`.
 
         Returns
         -------
@@ -1260,7 +1261,8 @@ class HDMockData:
         The returned `params` dict can be passed to the `camb.set_params`
         function, e.g. `pars = camb.set_params(**params)`.
         """
-        fname = self.camb_settings_fname(baryonic_feedback=baryonic_feedback)
+        fname = self.camb_settings_fname(baryonic_feedback=baryonic_feedback,
+                                         use_H0=use_H0)
         with open(fname, 'r') as f:
             params = yaml.safe_load(f)
         params['lmax'] = self.theo_lmax + 500
@@ -1268,8 +1270,7 @@ class HDMockData:
 
 
     def class_settings_fname(self, baryonic_feedback=False):
-        """
-        Path to the file that contains CLASS parameters (cosmology,
+        """Path to the file that contains CLASS parameters (cosmology,
         accuracy, etc.).
 
         Parameters
@@ -1298,9 +1299,7 @@ class HDMockData:
 
 
     def class_settings(self, baryonic_feedback=False):
-        """
-        Path to the file that contains CLASS parameters (cosmology,
-        accuracy, etc.).
+        """Dictionary of CLASS parameters (cosmology, accuracy, etc.).
 
         Parameters
         ----------

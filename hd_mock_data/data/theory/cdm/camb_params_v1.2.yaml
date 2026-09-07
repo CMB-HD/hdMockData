@@ -1,9 +1,9 @@
 AccuracyBoost: 1.1
 As: 2.0989031673191437e-09
 DoLateRadTruncation: false
-H0: 67.36
 NonLinear: NonLinear_both
 bbn_predictor: PRIMAT_Yp_DH_ErrorMC_2021.dat
+cosmomc_theta: 0.0104071
 halofit_version: mead2016
 k_per_logint: 130
 kmax: 100
@@ -11,7 +11,7 @@ lAccuracyBoost: 3.0
 lSampleBoost: 3.0
 lens_margin: 2050
 lens_potential_accuracy: 30
-lmax : 24500
+lmax: 24500
 min_l_logl_sampling: 10000
 mnu: 0.06
 nnu: 3.044
