@@ -573,7 +573,7 @@ class HDMockData:
         -----
         For version 1.2, the residual extragalactic foreground power
         spectra is obtained from simulations by applying the
-        foreground-cleaning procedure described in arXiv:XXXX.XXXXX. (!! TODO:LINK2PAPER !!)
+        foreground-cleaning procedure described in arXiv:2609.16128.
         Since CIB and radio sources are removed simultaneously, we
         provide the sum of the residual CIB and radio sources, instead
         of separate CIB and radio power spectra. Since the kSZ signal is
@@ -629,7 +629,7 @@ class HDMockData:
 
         For version 1.2, the residual extragalactic foreground power
         spectra is obtained from simulations by applying the
-        foreground-cleaning procedure described in arXiv:XXXX.XXXXX. (!! TODO:LINK2PAPER !!)
+        foreground-cleaning procedure described in arXiv:2609.16128.
         Since CIB and radio sources are removed simultaneously, we
         provide the sum of the residual CIB and radio sources, instead
         of separate CIB and radio power spectra. The simlation-based
@@ -884,8 +884,7 @@ class HDMockData:
 
         In version 1.2, the temperature power spectrum is obtained by
         applying the foreground-cleaning procedure described in
-        arXiv:XXXX.XXXXX (!! TODO:LINK2PAPER !!)
-        to maps with the lensed CMB, white noise, kSZ,
+        arXiv:2609.16128 to maps with the lensed CMB, white noise, kSZ,
         tSZ, CIB, and radio galaxies, and then taking the power spectrum
         of the foreground-cleaned temperature map after subtracting the
         lensed CMB realization from the map. Note that this will not
@@ -1319,7 +1318,7 @@ class HDMockData:
         used, CLASS cannot calculate the power spectra past a maximum
         multipole of about 14,000, which is lower than the value of
         `l_max_scalars` used (given by the `theo_lmax` attribute).
-        See arXiv:XXXX.XXXXX (!! TODO:LINK2ZACK !! ) for instructions to
+        See arXiv:YYYY.YYYYY (!! TODO:LINK2ZACK !! ) for instructions to
         modify CLASS so that a higher `l_max_scalars` can be used with
         `accurate_lensing=1`.
 
