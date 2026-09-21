@@ -1,4 +1,4 @@
-theta_s_100: 1.04165
+H0: 67.36
 N_ncdm: 3
 N_ur: 0.00441
 P_k_max_h/Mpc: 500
@@ -7,7 +7,7 @@ YHe: BBN
 accurate_lensing: 1
 deg_ncdm: 1,1,1
 delta_l_max: 2050
-hmcode_version: '2016'
+hmcode_version: 2020_baryonic_feedback
 hyper_flat_approximation_nu: 7000.0
 hyper_sampling_flat: 32.0
 l_linstep: 20
@@ -20,6 +20,7 @@ l_max_ur: 35
 l_switch_limber: 30.0
 lensing: 'yes'
 ln_A_s_1e10: 3.044
+log10T_heat_hmcode: 7.8
 m_ncdm: 0.02,0.02,0.02
 modes: s
 n_s: 0.9649

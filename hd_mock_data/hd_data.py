@@ -3,24 +3,28 @@ import warnings
 import numpy as np
 import yaml
 
+
 def binning_matrix(bin_edges, lmin=None, lmax=None, start_at_ell=2):
-    """Create a (num_bins, num_ells) binning matrix, which will bin the values
-    between `lmin` and `lmax` in a vector/matrix containing values for each
-    multipole between the `start_at_ell` and `lmax` values. For example, for
-    an array `c_ell` holding a power spectrum with a value at each multipole
-    `ell` in the range [2, 5000], to bin only the values in the range [30, 3000],
-    you would pass `lmin = 30`, `lmax = 3000`, and `start_at_ell=2`.
+    """Create a (num_bins, num_ells) binning matrix, which will bin the
+    values between `lmin` and `lmax` in a vector/matrix containing values
+    for each multipole between the `start_at_ell` and `lmax` values. For
+    example, for an array `c_ell` holding a power spectrum with a value at
+    each multipole `ell` in the range [2, 5000], to bin only the values in
+    the range [30, 3000], you would pass `lmin = 30`, `lmax = 3000`, and 
+    `start_at_ell=2`.
 
     Parameters
     ----------
     bin_edges : array of int
         A one dimensional array holding the upper bin edge for each bin,
-        except the first element, which is the lower bin edge of the first bin.
+        except the first element, which is the lower bin edge of the
+        first bin.
     lmin, lmax : int or None, default=None
-        The minimum and maximum multipole values of the quantity to be binned,
-        i.e. only values between `lmin` and `lmax` will be binned. If `lmin` is
-        `None`, we use the first value in the `bin_edges` array; if `lmax`
-        is `None`, we use the last value in the `bin_edges` array.
+        The minimum and maximum multipole values of the quantity to be
+        binned, i.e. only values between `lmin` and `lmax` will be
+        binned. If `lmin` is `None`, we use the first value in the
+        `bin_edges` array; if `lmax` is `None`, we use the last value in
+        the `bin_edges` array.
     start_at_ell : int, default=2
         The minimum multipole value in the quantity to be binned. This is
         typically either `0` or `2`.
@@ -84,32 +88,44 @@ def load_from_file(fname, columns, skip_cols=[]):
     return data
 
 
-def get_version_number(version):
-    return round(float(version[1:]), 2)
+def _use_v2_camb_names():
+    """Try to determine if the installed CAMB version is >= 2.0.0
+
+    Returns `True` if the CAMB version is >= 2.0.0, `False` for lower
+    versions, or `None` if CAMB is not installed.
+    """
+    try:
+        import camb
+        # we only need the first number:
+        vnum = int(camb.__version__.split('.')[0])
+        use_v2_names = (vnum >= 2)
+    except ImportError:
+        use_v2_names = None
+    return use_v2_names
 
 
-def get_compatible_version(version, available_versions):
-    if version in available_versions:
-        compatible_version = version
-    else:
-        version_num = get_version_number(version)
-        compatible_version = None
-        for v in available_versions:
-            if version_num >= get_version_number(v):
-                compatible_version = v
-    return compatible_version
+def _camb_param_names_warning(file_or_dict):
+    """Warn the user when the CAMB version cannot be determined,
+    so the parameter names will only work with CAMB version 2.0.0 or
+    higher.
+    """
+    msg = ("Unable to determine the CAMB version. The returned "
+           f"{file_or_dict} will contain parameter names "
+           "compatible with CAMB version 2.0.0 or higher. If you are "
+           "using a lower CAMB version, pass `v2_camb_names=False`.")
+    warnings.warn(msg, stacklevel=2)
 
 
 class HDMockData:
+    data_versions = ['v1.0', 'v1.1', 'v1.2']
+    latest_version = data_versions[-1]
+    
     def __init__(self, version='latest'):
-        self.data_versions = ['v1.0', 'v1.1', 'v1.2']
-        self.latest_version = self.data_versions[-1]
         if 'late' in version.lower():
             self.version = self.latest_version
         else:
             self.check_version(version)
             self.version = version.lower()
-        self.version_number = get_version_number(self.version)
 
         # keep track of versions for each kind of file:
         self.binning_versions = ['v1.0', 'v1.1']
@@ -188,6 +204,9 @@ class HDMockData:
         self.covmat_path = lambda x: os.path.join(self.data_path('covariance_matrices'), x)
         self.class_sbbn_file = self.theo_path('PRIMAT_Yp_DH_ErrorMC_2021_CLASS.dat')
 
+        # try to check which CAMB version is being used
+        self._use_v2camb = _use_v2_camb_names()
+
 
     def check_version(self, version):
         if version.lower() not in self.data_versions:
@@ -195,12 +214,14 @@ class HDMockData:
             raise ValueError(errmsg)
 
 
-    def set_version(self, version=None):
-        if version is None:
-            version = self.version
-        else:
-            self.check_version(version)
-        return version
+    def _version_is_same_or_higher(self, version):
+        vmajor, vminor = [int(n) for n in self.version.strip('v').split('.')]
+        other_vmajor, other_vminor = [int(n) for n in version.strip('v').split('.')]
+        same_or_higher_version = False
+        if other_vmajor >= vmajor:
+            if other_vminor >= vminor:
+                same_or_higher_version = True
+        return same_or_higher_version
 
 
     def get_compatible_version(self, available_versions, description,
@@ -210,7 +231,7 @@ class HDMockData:
             compatible_version = self.version
         elif allow_higher_version:
             for v in available_versions:
-                if self.version_number >= get_version_number(v):
+                if self._version_is_same_or_higher(v):
                     compatible_version = v
         if compatible_version is None:
             if allow_higher_version:
@@ -250,27 +271,39 @@ class HDMockData:
 
     
     def binning_matrix(self, lmin=None, lmax=None):
-        """Create a (num_bins, num_ells) binning matrix, which will bin the values
-        between `lmin` and `lmax` in a vector/matrix containing values for each
-        multipole between the `start_at_ell` and `lmax` values. For example, for
-        an array `c_ell` holding a power spectrum with a value at each multipole
-        `ell` in the range [2, 5000], to bin only the values in the range [30, 3000],
-        you would pass `lmin = 30`, `lmax = 3000`, and `start_at_ell=2`.
+        """Create a (num_bins, num_ells) binning matrix, which will bin
+        the values between `lmin` and `lmax` in a vector/matrix
+        containing values for each multipole between 2 and `lmax` values.
+        For example, for an array `c_ell` holding a power spectrum with a
+        value at each multipole `ell` in the range [2, 5000], to bin only
+        the values in the range [30, 3000], you would pass `lmin = 30` and
+        `lmax = 3000`.
+
+        Note that many of the methods defined here return arrays starting
+        from a multipole `ell=0`; to apply the binning matrix to these 
+        arrays, you must start the arrays at the `ell=2` element.
 
         Parameters
         ----------
         lmin, lmax : int or None, default=None
-            The minimum and maximum multipole values of the quantity to be binned,
-            i.e. only values between `lmin` and `lmax` will be binned. If `lmin` 
-            or `lmax` is `None`, the default values for CMB-HD are used. 
-        start_at_ell : int, default=2
-            The minimum multipole value in the quantity to be binned. This is
-            typically either `0` or `2`.
+            The minimum and maximum multipole values of the quantity to
+            be binned, i.e. only values between `lmin` and `lmax` will be
+            binned. If `lmin` or `lmax` is `None`, the default values for
+            CMB-HD are used. 
 
         Returns
         -------
         binmat : array of float
             The two-dimensional binning matrix of shape (num_bins, num_ells).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from hd_mock_data import hd_data
+        >>> lmax = 5000
+        >>> ells = np.arange(lmax+1)
+        >>> binmat = hd_data.HDMockData().binning_matrix(lmax=lmax)
+        >>> binned_ells = binmat @ ells[2:]
         """
         if lmin is None:
             lmin = self.lmin
@@ -1205,7 +1238,8 @@ class HDMockData:
 
     # theory code settings:
 
-    def camb_settings_fname(self, baryonic_feedback=False, use_H0=False):
+    def camb_settings_fname(self, baryonic_feedback=False, use_H0=False,
+                            v2_camb_names=None):
         """Path to the file that contains CAMB parameters (cosmology,
         accuracy, etc.).
 
@@ -1224,20 +1258,43 @@ class HDMockData:
         str
             The path to the file.
 
-        Notes
-        -----
-        The file does not contain the maximum multipole `lmax`.
+        Other Parameters
+        ----------------
+        v2_camb_names : bool or None, default=None
+            If you are using CAMB version 2.0.0 or higher, pass
+            `v2_camb_names=True`; if you are using a lower version, pass
+            `v2_camb_names=False`. By default, when `v2_camb_names=None`,
+            we attempt to import CAMB; if CAMB is installed,
+            `v2_camb_names` is set based on the CAMB version. Otherwise,
+            it will be set to `True`. The correct CAMB version is
+            required to ensure that the correct parameter names are
+            passed to CAMB.
+
+        See Also
+        --------
+        camb_settings : Dictionary of CAMB parameters.
         """
         version = self.get_compatible_version(self.camb_theo_versions, 'CAMB parameters')
         H0info = '_useH0' if use_H0 else ''
-        fname = f'camb_params{H0info}_{version}.yaml'
+        # some CAMB names were changed in version 2.0.0:
+        if v2_camb_names is None:
+            if self._use_v2camb is None:
+                # warn the user about CAMB version:
+                _camb_param_names_warning('parameter file')
+                # set the `_use_v2camb` attribute,
+                # so this warning is only raised once:
+                self._use_v2camb = True
+            v2_camb_names = self._use_v2camb
+        camb_name = 'camb2' if v2_camb_names else 'camb'
+        fname = f'{camb_name}_params{H0info}_{version}.yaml'
         if baryonic_feedback:
             return self.cdm_baryons_theo_path(fname)
         else:
             return self.cdm_theo_path(fname)
 
 
-    def camb_settings(self, baryonic_feedback=False, use_H0=False):
+    def camb_settings(self, baryonic_feedback=False, use_H0=False,
+                      v2_camb_names=None):
         """Dictionary of CAMB parameters (cosmology, accuracy, etc.).
 
         Parameters
@@ -1255,20 +1312,40 @@ class HDMockData:
         params : dict
             A dictionary of CAMB settings.
 
+        Other Parameters
+        ----------------
+        v2_camb_names : bool or None, default=None
+            If you are using CAMB version 2.0.0 or higher, pass
+            `v2_camb_names=True`; if you are using a lower version, pass
+            `v2_camb_names=False`. By default, when `v2_camb_names=None`,
+            we attempt to import CAMB; if CAMB is installed,
+            `v2_camb_names` is set based on the CAMB version. Otherwise,
+            it will be set to `True`. The correct CAMB version is
+            required to ensure that the correct parameter names are
+            passed to CAMB.
+
         Notes
         -----
         The returned `params` dict can be passed to the `camb.set_params`
         function, e.g. `pars = camb.set_params(**params)`.
         """
+        # raise the warning about the CAMB version here, if necessary:
+        if v2_camb_names is None:
+            if self._use_v2camb is None:
+                # warn the user about CAMB version:
+                _camb_param_names_warning('dictionary')
+                # set the `_use_v2camb` attribute,
+                # so this warning is only raised once:
+                self._use_v2camb = True
+            v2_camb_names = self._use_v2camb
         fname = self.camb_settings_fname(baryonic_feedback=baryonic_feedback,
-                                         use_H0=use_H0)
+                                         use_H0=use_H0, v2_camb_names=v2_camb_names)
         with open(fname, 'r') as f:
             params = yaml.safe_load(f)
-        params['lmax'] = self.theo_lmax + 500
         return params
 
 
-    def class_settings_fname(self, baryonic_feedback=False):
+    def class_settings_fname(self, baryonic_feedback=False, use_H0=False):
         """Path to the file that contains CLASS parameters (cosmology,
         accuracy, etc.).
 
@@ -1278,26 +1355,37 @@ class HDMockData:
             If `True`, the file name returned will be for a file holding
             settings for the HMCode2020 + baryonic feedback non-linear
             model, as opposed to the HMCode2016 CDM-only model.
+        use_H0 : bool, default=False
+            Whether to use the Hubble constant `H0` instead of 
+            `theta_s_100`.
 
         Returns
         -------
         str
             The path to the file.
 
+        See Also
+        --------
+        class_settings : Dictionary of CLASS parameters.
+
         Notes
         -----
-        The file does not contain the maximum multipole `l_max_scalars`,
-        or the path to the `sBBN file` provided with `hdMockData`.
+        The file does not contain the path to the `sBBN file` provided 
+        with `hdMockData` (because the absolute path cannot be determined
+        prior to installing this code). Use the `class_settings` method
+        to load the YAML file in to a dictionary, and add the correct path
+        to the `sBBN file`.
         """
         version = self.get_compatible_version(self.class_theo_versions, 'CLASS parameters')
-        fname = f'class_params_{version}.yaml'
+        H0info = '_useH0' if use_H0 else ''
+        fname = f'class_params{H0info}_{version}.yaml'
         if baryonic_feedback:
             return self.cdm_baryons_theo_path(fname)
         else:
             return self.cdm_theo_path(fname)
 
 
-    def class_settings(self, baryonic_feedback=False):
+    def class_settings(self, baryonic_feedback=False, use_H0=False):
         """Dictionary of CLASS parameters (cosmology, accuracy, etc.).
 
         Parameters
@@ -1306,6 +1394,9 @@ class HDMockData:
             If `True`, the file name returned will be for a file holding
             settings for the HMCode2020 + baryonic feedback non-linear
             model, as opposed to the HMCode2016 CDM-only model.
+        use_H0 : bool, default=False
+            Whether to use the Hubble constant `H0` instead of 
+            `theta_s_100`.
 
         Returns
         -------
@@ -1326,7 +1417,8 @@ class HDMockData:
         method, e.g. by calling `cosmo = classy.Class()` and
         `cosmo.set(params)`.
         """
-        fname = self.class_settings_fname(baryonic_feedback=baryonic_feedback)
+        fname = self.class_settings_fname(baryonic_feedback=baryonic_feedback, 
+                                          use_H0=use_H0)
         with open(fname, 'r') as f:
             params = yaml.safe_load(f)
         params['sBBN file'] = self.class_sbbn_file
