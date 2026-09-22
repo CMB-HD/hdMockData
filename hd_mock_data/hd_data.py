@@ -218,8 +218,8 @@ class HDMockData:
         vmajor, vminor = [int(n) for n in self.version.strip('v').split('.')]
         other_vmajor, other_vminor = [int(n) for n in version.strip('v').split('.')]
         same_or_higher_version = False
-        if other_vmajor >= vmajor:
-            if other_vminor >= vminor:
+        if vmajor >= other_vmajor:
+            if vminor >= other_vminor:
                 same_or_higher_version = True
         return same_or_higher_version
 
