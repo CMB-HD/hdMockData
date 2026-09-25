@@ -116,6 +116,13 @@ def _camb_param_names_warning(file_or_dict):
     warnings.warn(msg, stacklevel=2)
 
 
+def class_sbbn_file():
+    data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+    theo_dir = os.path.join(data_dir, 'theory')
+    sbbn_file = os.path.join(theo_dir, 'PRIMAT_Yp_DH_ErrorMC_2021_CLASS.dat')
+    return sbbn_file
+
+
 class HDMockData:
     data_versions = ['v1.0', 'v1.1', 'v1.2']
     latest_version = data_versions[-1]
@@ -202,7 +209,7 @@ class HDMockData:
         self.noise_path = lambda x: os.path.join(self.data_path('noise'), x)
         self.fg_path = lambda x: os.path.join(self.data_path('foregrounds'), x)
         self.covmat_path = lambda x: os.path.join(self.data_path('covariance_matrices'), x)
-        self.class_sbbn_file = self.theo_path('PRIMAT_Yp_DH_ErrorMC_2021_CLASS.dat')
+        self.class_sbbn_file = class_sbbn_file()
 
         # try to check which CAMB version is being used
         self._use_v2camb = _use_v2_camb_names()
@@ -1385,7 +1392,8 @@ class HDMockData:
             return self.cdm_theo_path(fname)
 
 
-    def class_settings(self, baryonic_feedback=False, use_H0=False):
+    def class_settings(self, baryonic_feedback=False, use_H0=False,
+                       abs_sbbn_file_path=False):
         """Dictionary of CLASS parameters (cosmology, accuracy, etc.).
 
         Parameters
@@ -1395,13 +1403,23 @@ class HDMockData:
             settings for the HMCode2020 + baryonic feedback non-linear
             model, as opposed to the HMCode2016 CDM-only model.
         use_H0 : bool, default=False
-            Whether to use the Hubble constant `H0` instead of 
+            Whether to use the Hubble constant `H0` instead of
             `theta_s_100`.
 
         Returns
         -------
         params : dict
             A dictionary of CLASS settings.
+
+        Other Parameters
+        ----------------
+        abs_sbbn_file_path : bool, default=False
+            If `True`, add the absolute path to the `sBBN file` provided
+            here and used by CLASS. By default, the path is relative
+            to the main CLASS directory, i.e.
+            `/external/bbn/PRIMAT_Yp_DH_ErrorMC_2021_CLASS.dat`. Note
+            that CLASS will not accept an absolute path in versions
+            3.3.2 or higher.
 
         Notes
         -----
@@ -1417,11 +1435,30 @@ class HDMockData:
         method, e.g. by calling `cosmo = classy.Class()` and
         `cosmo.set(params)`.
         """
-        fname = self.class_settings_fname(baryonic_feedback=baryonic_feedback, 
+        fname = self.class_settings_fname(baryonic_feedback=baryonic_feedback,
                                           use_H0=use_H0)
         with open(fname, 'r') as f:
             params = yaml.safe_load(f)
-        params['sBBN file'] = self.class_sbbn_file
+        # sBBN file:
+        sbbn_file_warning = ("You must copy the `sBBN file` provided by hdMockData, "
+                            f"{self.class_sbbn_file}, in to the `external/bbn` "
+                            "directory of CLASS. Note that you will need to "
+                            "re-install `classy` (i.e., the CLASS python wrapper) "
+                            "after doing this.")
+        if abs_sbbn_file_path:
+            params['sBBN file'] = self.class_sbbn_file
+            warnings.warn("Added the absolute path to the `sBBN file`: "
+                          f"{self.class_sbbn_file}. Note that CLASS will not "
+                          "accept an absolute path to this file in versions "
+                          "3.3.2 or higher. If you are using a newer CLASS "
+                          f"version: {sbbn_file_warning} Then pass "
+                          "`abs_sbbn_file_path=False` to this method to get "
+                          "a dictionary of CLASS parameters with the correct "
+                          "`sBBN file` path.")
+        else:
+            file_name = os.path.split(self.class_sbbn_file)[-1]
+            rel_path = os.path.sep.join(['', 'external', 'bbn', file_name])
+            warnings.warn(sbbn_file_warning)
         params['l_max_scalars'] = self.theo_lmax + 500
         # warn about the need to modify class:
         msg = ("By default, CLASS cannot calculate the power spectra with "
