@@ -32,7 +32,7 @@ perturbations_sampling_stepsize: 0.05
 radiation_streaming_approximation: 2
 radiation_streaming_trigger_tau_over_tau_k: 240.0
 recombination: recfast
-sBBN file: /external/bbn/PRIMAT_Yp_DH_ErrorMC_2021.dat
+sBBN file: /external/bbn/PRIMAT_Yp_DH_ErrorMC_2021_CLASS.dat
 start_large_k_at_tau_h_over_tau_k: 0.05
 start_small_k_at_tau_c_over_tau_h: 0.0004
 start_sources_at_tau_c_over_tau_h: 0.006
