@@ -1374,14 +1374,6 @@ class HDMockData:
         See Also
         --------
         class_settings : Dictionary of CLASS parameters.
-
-        Notes
-        -----
-        The file does not contain the path to the `sBBN file` provided 
-        with `hdMockData` (because the absolute path cannot be determined
-        prior to installing this code). Use the `class_settings` method
-        to load the YAML file in to a dictionary, and add the correct path
-        to the `sBBN file`.
         """
         version = self.get_compatible_version(self.class_theo_versions, 'CLASS parameters')
         H0info = '_useH0' if use_H0 else ''
@@ -1456,8 +1448,6 @@ class HDMockData:
                           "a dictionary of CLASS parameters with the correct "
                           "`sBBN file` path.")
         else:
-            file_name = os.path.split(self.class_sbbn_file)[-1]
-            rel_path = os.path.sep.join(['', 'external', 'bbn', file_name])
             warnings.warn(sbbn_file_warning)
         params['l_max_scalars'] = self.theo_lmax + 500
         # warn about the need to modify class:
