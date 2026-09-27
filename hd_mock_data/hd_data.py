@@ -1419,8 +1419,8 @@ class HDMockData:
         used, CLASS cannot calculate the power spectra past a maximum
         multipole of about 14,000, which is lower than the value of
         `l_max_scalars` used (given by the `theo_lmax` attribute).
-        See arXiv:YYYY.YYYYY (!! TODO:LINK2ZACK !! ) for instructions to
-        modify CLASS so that a higher `l_max_scalars` can be used with
+        See the `hdMockData` "readme" file for instructions to modify 
+        CLASS so that a higher `l_max_scalars` can be used with
         `accurate_lensing=1`.
 
         The returned `params` dict can be passed to the `classy.Class.set`
@@ -1453,7 +1453,8 @@ class HDMockData:
         # warn about the need to modify class:
         msg = ("By default, CLASS cannot calculate the power spectra with "
                f"`accurate_lensing = {params['accurate_lensing']}` and "
-               f"`l_max_scalars` = {self.theo_lmax+500}.") # TODO : add ref. to paper for instructions
+               f"`l_max_scalars` = {self.theo_lmax+500}. See the `hdMockData` "
+               "'readme' file for more information and modification instructions.") 
         warnings.warn(msg)
         return params
 
